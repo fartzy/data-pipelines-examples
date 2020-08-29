@@ -1,2 +1,2 @@
-# databricks-notebooks-examples
+# spark-pipelines
 Repo for helpful Databricks notebooks
