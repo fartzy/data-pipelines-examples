@@ -10,7 +10,7 @@ import logging
 import pytz
 from datetime import datetime, timezone
 
-GOOGLE_SERVICE_ACCOUNT_CREDENTIALS = BaseHook.get_connection("aap_google_service_account")
+GOOGLE_SERVICE_ACCOUNT_CREDENTIALS = BaseHook.get_connection("demo_google_service_account")
 
 
 class GDriveUtil:
