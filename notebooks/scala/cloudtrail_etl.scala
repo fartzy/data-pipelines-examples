@@ -11,7 +11,7 @@
 
 // COMMAND ----------
 
-val cloudTrailLogsPath = "s3n://bucket-name-for-customer/AWSLogs/*/CloudTrail/*/2020/*/*/"
+val cloudTrailLogsPath = "s3://bucket-name-for-customer/AWSLogs/*/CloudTrail/*/2020/*/*/"
 val parquetOutputPath = "/tmp/cloudTrailRaw/"  // DBFS or S3 path
 
 // COMMAND ----------
