@@ -49,7 +49,7 @@ def main():
     }
     GRAPHQL_BASE_URL = f"https://{demo_GRAPHQL_API_CREDENTIALS.host}"
 
-    # Instantiate the client with the Riot GraphQL endpoint
+    # Instantiate the client with the Acme GraphQL endpoint
     client = GraphqlClient(endpoint=f"{GRAPHQL_BASE_URL}/api/v1/graphql", headers=GRAPHQL_HEADERS)
 
     # graphQL query for the request to the above api endpoint
