@@ -1,6 +1,6 @@
-# Spark Pipelines
-- Repo for helpful Databricks notebooks
-  - Examples of Data pipelines
+# Data Pipelines Examples
+- Databricks notebooks
+- DAGs
 
 ## Organized by File Extension
 - Python
