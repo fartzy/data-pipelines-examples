@@ -1,7 +1,6 @@
 # Databricks notebook source
 dbutils.widgets.text("delta_path", "/tpcds_populate_automate/delta")
 dbutils.widgets.text("raw_data_path", "/tpcds_populate_automate/data")
-dbutils.widgets.text("schemas_path", "/tpcds_populate_automate/data/schemas")
 dbutils.widgets.text("scale_factor", "2")
 dbutils.widgets.text("db", "tpcds_migrate_sf1")
 
@@ -41,7 +40,7 @@ ls_out = subprocess.run(["make", "OS=LINUX",],
 #get parameter values
 delta_path = dbutils.widgets.get("delta_path")
 raw_data_path = dbutils.widgets.get("raw_data_path")
-schemas_path = dbutils.widgets.get("schemas_path")
+schemas_path = "{raw_data_path}/schemas".format(raw_data_path=raw_data_path)
 sf = dbutils.widgets.get("scale_factor")
 db = dbutils.widgets.get("db")
 
@@ -95,14 +94,6 @@ for file in dbutils.fs.ls(raw_data_path):
   sum = sum + file.size
   
 print(str(round((sum / 1024 / 1024 / 1024), 3)) + " GB Total Size of Raw Data Files" )
-
-# COMMAND ----------
-
-sql("""
-  CREATE DATABASE {db} IF NOT EXISTS 
-  COMMENT 'This was created for the TPC-DS Auto Generation' 
-  LOCATION '{delta_path}'
-  """.format(db=db, delta_path=delta_path))
 
 # COMMAND ----------
 
