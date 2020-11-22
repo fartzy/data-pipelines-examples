@@ -13,6 +13,7 @@
 # COMMAND ----------
 
 # MAGIC %scala
+# MAGIC 
 # MAGIC val s = dbutils.notebook.getContext().apiToken.get
 
 # COMMAND ----------
