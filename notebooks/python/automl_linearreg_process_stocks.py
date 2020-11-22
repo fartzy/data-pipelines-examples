@@ -1,4 +1,17 @@
 # Databricks notebook source
+# MAGIC %md
+# MAGIC Give a Stock TICKER Symbol that will get historical information 
+# MAGIC Add the current info as another row to the historical data set 
+# MAGIC 
+# MAGIC - date
+# MAGIC - open 
+# MAGIC - high 
+# MAGIC - low
+# MAGIC - close (it wont be actual close, it will be time before close so that we can either buy or sell for next day)
+# MAGIC - volume
+
+# COMMAND ----------
+
 # MAGIC %scala
 # MAGIC val s = dbutils.notebook.getContext().apiToken.get
 
@@ -79,197 +92,456 @@ typed_df = df.selectExpr("to_date(date) AS date", "cast(open AS Decimal(11,5)) A
 
 # COMMAND ----------
 
+display(typed_df.orderBy(desc("date")))
+
+# COMMAND ----------
+
 date_ranked_df = typed_df.select("*", row_number().over(Window.orderBy(col("Date").desc())).alias("Date_Rank"))
 df1 = date_ranked_df.alias("df1")
 df2 = date_ranked_df.alias("df2")
 
 with_1_day_difference_df = df1.alias("dfDayAhead").join(
-                    df2.select(col("Open").alias("Open1DayAgo")
-                  , col("High").alias("High1DayAgo")
-                  , col("Low").alias("Low1DayAgo")
-                  , col("Close").alias("Close1DayAgo")
-                  , col("Volume").alias("Volume1DayAgo")
-                  , col("Date_Rank").alias("DateRank1DayBehind")
-                  , col("Date").alias("Date1DayBehind"))
-            , col("DateRank1DayBehind") == (col("dfDayAhead.Date_Rank") + 1), "inner")
+  df2.select(
+    col("Open").alias("Open1DayAgo")
+    , col("High").alias("High1DayAgo")
+    , col("Low").alias("Low1DayAgo")
+    , col("Close").alias("Close1DayAgo")
+    , col("Volume").alias("Volume1DayAgo")
+    , col("Date_Rank").alias("DateRank1DayBehind")
+    , col("Date").alias("Date1DayBehind"))
+    , col("DateRank1DayBehind") == (col("dfDayAhead.Date_Rank") + 1), "inner")
 
 with_2_day_difference_df = with_1_day_difference_df.alias("dfDayAhead").join(
-    df2.select(col("Open").alias("Open2DayAgo")
-               , col("High").alias("High2DayAgo")
-               , col("Low").alias("Low2DayAgo")
-               , col("Close").alias("Close2DayAgo")
-               , col("Volume").alias("Volume2DayAgo")
-               , col("Date_Rank").alias("DateRank2DayBehind")
-               , col("Date").alias("Date2DayBehind"))
-  , col("DateRank2DayBehind") == (col("dfDayAhead.Date_Rank") + 2), "inner")
+  df2.select(
+    col("Open").alias("Open2DayAgo")
+   , col("High").alias("High2DayAgo")
+   , col("Low").alias("Low2DayAgo")
+   , col("Close").alias("Close2DayAgo")
+   , col("Volume").alias("Volume2DayAgo")
+   , col("Date_Rank").alias("DateRank2DayBehind")
+   , col("Date").alias("Date2DayBehind"))
+   , col("DateRank2DayBehind") == (col("dfDayAhead.Date_Rank") + 2), "inner")
+
+with_2_day_difference_df.createOrReplaceTempView("stock_last_10_days")
 
 with_3_day_difference_df = with_2_day_difference_df.alias("dfDayAhead").join(
-  df2.select(col("Open").alias("Open3DayAgo")
-             , col("High").alias("High3DayAgo")
-             , col("Low").alias("Low3DayAgo")
-             , col("Close").alias("Close3DayAgo")
-             , col("Volume").alias("Volume3DayAgo")
-             ,  col("Date_Rank").alias("DateRank3DayBehind")
-             , col("Date").alias("Date3DayBehind"))
+  df2.select(
+    col("Open").alias("Open3DayAgo")
+   , col("High").alias("High3DayAgo")
+   , col("Low").alias("Low3DayAgo")
+   , col("Close").alias("Close3DayAgo")
+   , col("Volume").alias("Volume3DayAgo")
+   , col("Date_Rank").alias("DateRank3DayBehind")
+   , col("Date").alias("Date3DayBehind"))
   , col("DateRank3DayBehind") == (col("dfDayAhead.Date_Rank") + 3), "inner")
 
 with_4_day_difference_df = with_3_day_difference_df.alias("dfDayAhead").join(
-  df2.select(col("Open").alias("Open4DayAgo")
-             , col("High").alias("High4DayAgo")
-             , col("Low").alias("Low4DayAgo")
-             ,  col("Close").alias("Close4DayAgo")
-             , col("Volume").alias("Volume4DayAgo")
-             ,  col("Date_Rank").alias("DateRank4DayBehind")
-             , col("Date").alias("Date4DayBehind"))
+  df2.select(
+    col("Open").alias("Open4DayAgo")
+   , col("High").alias("High4DayAgo")
+   , col("Low").alias("Low4DayAgo")
+   , col("Close").alias("Close4DayAgo")
+   , col("Volume").alias("Volume4DayAgo")
+   , col("Date_Rank").alias("DateRank4DayBehind")
+   , col("Date").alias("Date4DayBehind"))
   , col("DateRank4DayBehind") == (col("dfDayAhead.Date_Rank") + 4), "inner")
 
 with_5_day_difference_df = with_4_day_difference_df.alias("dfDayAhead").join(
-  df2.select(col("Open").alias("Open5DayAgo")
-             , col("High").alias("High5DayAgo")
-             , col("Low").alias("Low5DayAgo")
-             , col("Close").alias("Close5DayAgo")
-             , col("Volume").alias("Volume5DayAgo")
-             ,  col("Date_Rank").alias("DateRank5DayBehind")
-             , col("Date").alias("Date5DayBehind"))
-  , col("DateRank5DayBehind") == (col("dfDayAhead.Date_Rank") + 5), "inner")
+  df2.select(
+    col("Open").alias("Open5DayAgo")
+   , col("High").alias("High5DayAgo")
+   , col("Low").alias("Low5DayAgo")
+   , col("Close").alias("Close5DayAgo")
+   , col("Volume").alias("Volume5DayAgo")
+   , col("Date_Rank").alias("DateRank5DayBehind")
+   , col("Date").alias("Date5DayBehind"))
+   , col("DateRank5DayBehind") == (col("dfDayAhead.Date_Rank") + 5), "inner")
 
 with_6_day_difference_df = with_5_day_difference_df.alias("dfDayAhead").join(
-  df2.select(col("Open").alias("Open6DayAgo")
-             , col("High").alias("High6DayAgo")
-             , col("Low").alias("Low6DayAgo")
-             , col("Close").alias("Close6DayAgo")
-             , col("Volume").alias("Volume6DayAgo")
-             ,  col("Date_Rank").alias("DateRank6DayBehind")
-             , col("Date").alias("Date6DayBehind"))
-  , col("DateRank6DayBehind") == (col("dfDayAhead.Date_Rank") + 6), "inner")
+  df2.select(
+    col("Open").alias("Open6DayAgo")
+   , col("High").alias("High6DayAgo")
+   , col("Low").alias("Low6DayAgo")
+   , col("Close").alias("Close6DayAgo")
+   , col("Volume").alias("Volume6DayAgo")
+   , col("Date_Rank").alias("DateRank6DayBehind")
+   , col("Date").alias("Date6DayBehind"))
+   , col("DateRank6DayBehind") == (col("dfDayAhead.Date_Rank") + 6), "inner")
 
 with_7_day_difference_df = with_6_day_difference_df.alias("dfDayAhead").join(
-  df2.select(col("Open").alias("Open7DayAgo")
-             , col("High").alias("High7DayAgo")
-             , col("Low").alias("Low7DayAgo")
-             , col("Close").alias("Close7DayAgo")
-             , col("Volume").alias("Volume7DayAgo")
-             ,  col("Date_Rank").alias("DateRank7DayBehind")
-             , col("Date").alias("Date7DayBehind"))
+  df2.select(
+     col("Open").alias("Open7DayAgo")
+   , col("High").alias("High7DayAgo")
+   , col("Low").alias("Low7DayAgo")
+   , col("Close").alias("Close7DayAgo")
+   , col("Volume").alias("Volume7DayAgo")
+   , col("Date_Rank").alias("DateRank7DayBehind")
+   , col("Date").alias("Date7DayBehind"))
   , col("DateRank7DayBehind") == (col("dfDayAhead.Date_Rank") + 7), "inner")
 
 with_8_day_difference_df = with_7_day_difference_df.alias("dfDayAhead").join(
   df2.select(col("Open").alias("Open8DayAgo")
-             , col("High").alias("High8DayAgo")
-             , col("Low").alias("Low8DayAgo")
-             , col("Close").alias("Close8DayAgo")
-             , col("Volume").alias("Volume8DayAgo")
-             ,  col("Date_Rank").alias("DateRank8DayBehind")
-             , col("Date").alias("Date8DayBehind"))
-  , col("DateRank8DayBehind") == (col("dfDayAhead.Date_Rank") + 8), "inner")
+   , col("High").alias("High8DayAgo")
+   , col("Low").alias("Low8DayAgo")
+   , col("Close").alias("Close8DayAgo")
+   , col("Volume").alias("Volume8DayAgo")
+   , col("Date_Rank").alias("DateRank8DayBehind")
+   , col("Date").alias("Date8DayBehind"))
+   , col("DateRank8DayBehind") == (col("dfDayAhead.Date_Rank") + 8), "inner")
 
 with_9_day_difference_df = with_8_day_difference_df.alias("dfDayAhead").join(
   df2.select(col("Open").alias("Open9DayAgo")
-             , col("High").alias("High9DayAgo")
-             , col("Low").alias("Low9DayAgo")
-             , col("Close").alias("Close9DayAgo")
-             , col("Volume").alias("Volume9DayAgo")
-             ,  col("Date_Rank").alias("DateRank9DayBehind")
-             , col("Date").alias("Date9DayBehind"))
+  , col("High").alias("High9DayAgo")
+  , col("Low").alias("Low9DayAgo")
+  , col("Close").alias("Close9DayAgo")
+  , col("Volume").alias("Volume9DayAgo")
+  , col("Date_Rank").alias("DateRank9DayBehind")
+  , col("Date").alias("Date9DayBehind"))
   , col("DateRank9DayBehind") == (col("dfDayAhead.Date_Rank") + 9), "inner")
 
 with_10_day_difference_df = with_9_day_difference_df.alias("dfDayAhead").join(
   df2.select(col("Open").alias("Open10DayAgo")
-             , col("High").alias("High10DayAgo")
-             , col("Low").alias("Low10DayAgo")
-             , col("Close").alias("Close10DayAgo")
-             , col("Volume").alias("Volume10DayAgo")
-             , col("Date_Rank").alias("DateRank10DayBehind")
-             , col("Date").alias("Date10DayBehind"))
+  , col("High").alias("High10DayAgo")
+  , col("Low").alias("Low10DayAgo")
+  , col("Close").alias("Close10DayAgo")
+  , col("Volume").alias("Volume10DayAgo")
+  , col("Date_Rank").alias("DateRank10DayBehind")
+  , col("Date").alias("Date10DayBehind"))
   , col("DateRank10DayBehind") == (col("dfDayAhead.Date_Rank") + 10), "inner")
 
 with_10_day_difference_df.createOrReplaceTempView("stock_last_10_days")
 
 features_df = spark.sql(""" 
-  SELECT *
-       , (Open - Close) * -1 AS OCVolatility
-       , CASE 
-             WHEN ((Open - Close) * -1) > 1 THEN 1 
-             ELSE 0 
-         END AS BuyFlag
-       , High - Low AS HLAbsoluteVolatility
-       , High1DayAgo - High2DayAgo AS DiffHigh1DayAgoTOHigh2DayAgo
-       , High2DayAgo - High3DayAgo AS DiffHigh2DayAgoFROMHigh3DayAgo
-       , High3DayAgo - High4DayAgo AS DiffHigh3DayAgoFROMHigh4DayAgo
-       , High4DayAgo - High5DayAgo AS DiffHigh4DayAgoFROMHigh5DayAgo
-       , High5DayAgo - High6DayAgo AS DiffHigh5DayAgoFROMHigh6DayAgo
-       , High6DayAgo - High7DayAgo AS DiffHigh6DayAgoFROMHigh7DayAgo
-       , High7DayAgo - High8DayAgo AS DiffHigh7DayAgoFROMHigh8DayAgo
-       , High8DayAgo - High9DayAgo AS DiffHigh8DayAgoFROMHigh9DayAgo
-       , High1DayAgo - High4DayAgo AS DiffHigh1DayAgoFROMHigh3DayAgo
-       , High1DayAgo - High4DayAgo AS DiffHigh1DayAgoFROMHigh4DayAgo
-       , High1DayAgo - High5DayAgo AS DiffHigh1DayAgoFROMHigh5DayAgo
-       , High1DayAgo - High10DayAgo AS DiffHigh1DayAgoFROMHigh10DayAgo
-       , High9DayAgo - High10DayAgo AS DiffHigh9DayAgoFROMHigh10DayAgo
-       , Close1DayAgo - Close2DayAgo AS DiffCloseTodayFROMClose2DayAgo 
-       , Close2DayAgo - Close3DayAgo AS DiffClose2DayAgoFROMClose3DayAgo 
-       , Close3DayAgo - Close4DayAgo AS DiffClose3DayAgoFROMClose4DayAgo
-       , Close4DayAgo - Close5DayAgo AS DiffClose4DayAgoFROMClose5DayAgo 
-       , Close5DayAgo - Close6DayAgo AS DiffClose5DayAgoFROMClose6DayAgo 
-       , Close6DayAgo - Close7DayAgo AS DiffClose6DayAgoFROMClose7DayAgo 
-       , Close7DayAgo - Close8DayAgo AS DiffClose7DayAgoFROMClose8DayAgo 
-       , Close8DayAgo - Close9DayAgo AS DiffClose8DayAgoFROMClose9DayAgo 
-       , Close1DayAgo - Close3DayAgo AS DiffClose1DayAgoFROMClose3DayAgo
-       , Close1DayAgo - Close4DayAgo AS DiffClose1DayAgoFROMClose4DayAgo 
-       , Close1DayAgo - Close5DayAgo AS DiffClose1DayAgoFROMClose5DayAgo 
-       , Close1DayAgo - Close10DayAgo AS DiffClose1DayAgoFROMClose10DayAgo
-       , Close9DayAgo - Close10DayAgo AS DiffClose9DayAgoFROMClose10DayAgo 
-       , (High1DayAgo - Low1DayAgo) / (High2DayAgo - Low2DayAgo) AS Volatility1DayAgoOVERVolatility2DaysAgo 
-       , (High2DayAgo - Low2DayAgo) / (High3DayAgo - Low3DayAgo) AS Volatility2DaysAgoOVERVolatility3DaysAgo 
-       , (High3DayAgo - Low3DayAgo) / (High4DayAgo - Low4DayAgo) AS Volatility3DaysAgoOVERVolatility4DaysAgo 
-       , (High4DayAgo - Low4DayAgo) / (High5DayAgo - Low5DayAgo) AS Volatility4DaysAgoOVERVolatility5DaysAgo 
-       , (High5DayAgo - Low5DayAgo) / (High6DayAgo - Low6DayAgo) AS Volatility5DaysAgoOVERVolatility6DaysAgo
-       , (High6DayAgo - Low6DayAgo) / (High7DayAgo - Low7DayAgo) AS Volatility6DaysAgoOVERVolatility7DaysAgo
-       , (High7DayAgo - Low7DayAgo) / (High8DayAgo - Low8DayAgo) AS Volatility7DaysAgoOVERVolatility8DaysAgo 
-       , (High8DayAgo - Low8DayAgo) / (High9DayAgo - Low9DayAgo) AS Volatility8DaysAgoOVERVolatility9DaysAgo 
-       , (High9DayAgo - Low9DayAgo) / (High10DayAgo - Low10DayAgo) AS Volatility9DaysAgoOVERVolatility10DaysAgo
-       , (High1DayAgo - Low1DayAgo) / (High3DayAgo - Low3DayAgo) AS Volatility1DayAgoOVERVolatility3DaysAgo
-       , (High1DayAgo - Low1DayAgo) / (High4DayAgo - Low4DayAgo) AS Volatility1DayAgoOVERVolatility4DaysAgo 
-       , (High1DayAgo - Low1DayAgo) / (High5DayAgo - Low5DayAgo) AS Volatility1DayAgoOVERVolatility5DaysAgo 
-       , (High1DayAgo - Low1DayAgo) / (High10DayAgo - Low10DayAgo) AS Volatility1DayAgoOVERVolatility10DaysAgo 
-       , (High10DayAgo - High7DayAgo) / (High3DayAgo - High1DayAgo) AS ThreeDayVolatilityBetweenHighTenAgoAndSevenAgoOVERTwoDayVolatilityBetweenHighThreeAgoAndOneAgo
-       , (High9DayAgo - High6DayAgo) / (High3DayAgo - High1DayAgo) AS ThreeDayVolatilityBetweenHighNineAgoAndSixAgoOVERTwoDayVolatilityBetweenHighThreeAgoAndOneAgo 
-       , (High8DayAgo - High5DayAgo) / (High3DayAgo - High1DayAgo) AS ThreeDayVolatilityBetweenHighEightAgoAndFiveAgoOVERTwoDayVolatilityBetweenHighThreeAgoAndOneAgo 
-       , (High7DayAgo - High4DayAgo) / (High3DayAgo - High1DayAgo) AS ThreeDayVolatilityBetweenHighSevenAgoAndFourAgoOVERTwoDayVolatilityBetweenHighThreeAgoAndOneAgo 
- FROM stock_last_10_days""")
+WITH cte0 AS
+  (
+    SELECT *
+       , (Close - Open) AS CloseOpenDiffForDay
+       , LAG(
+            CASE 
+              /*
+                Buy if the next day the stock will raise 1.5 percent or more
+              */
+              WHEN ( ((Close - Close1DayAgo) / Close1DayAgo) * 100 ) > 1.5 THEN 1 
+              ELSE 0 
+            END
+            , 1) OVER (ORDER BY Date_Rank) AS BuyBeforeCloseTodaySoYouMakeMoneyTomorrow
+       , LAG( ( (Close - Close1DayAgo) / Close1DayAgo) ) OVER (ORDER BY Date_Rank) AS NextDayClose            
+       , High - High1DayAgo AS DollarDiffHighANDHigh1DayAgo
+       , High - High2DayAgo AS DollarDiffHighANDHigh2DayAgo
+       , High - High3DayAgo AS DollarDiffHighANDHigh3DayAgo
+       , High - High4DayAgo AS DollarDiffHighANDHigh4DayAgo
+       , High - High5DayAgo AS DollarDiffHighANDHigh5DayAgo
+       , High - High10DayAgo AS DollarDiffHighANDHigh10DayAgo
+       
+       , High1DayAgo - High2DayAgo AS DollarDiffHigh1DayAgoANDHigh2DayAgo
+       , High1DayAgo - High3DayAgo AS DollarDiffHigh1DayAgoANDHigh3DayAgo
+       , High1DayAgo - High4DayAgo AS DollarDiffHigh1DayAgoANDHigh4DayAgo
+       , High1DayAgo - High5DayAgo AS DollarDiffHigh1DayAgoANDHigh5DayAgo
+       , High1DayAgo - High10DayAgo AS DollarDiffHigh1DayAgoANDHigh10DayAgo      
+       
+       , High2DayAgo - High3DayAgo AS DollarDiffHigh2DayAgoANDHigh3DayAgo
+       , High3DayAgo - High4DayAgo AS DollarDiffHigh3DayAgoANDHigh4DayAgo
+       , High4DayAgo - High5DayAgo AS DollarDiffHigh4DayAgoANDHigh5DayAgo
+       , High5DayAgo - High6DayAgo AS DollarDiffHigh5DayAgoANDHigh6DayAgo
+       , High6DayAgo - High7DayAgo AS DollarDiffHigh6DayAgoANDHigh7DayAgo
+       , High7DayAgo - High8DayAgo AS DollarDiffHigh7DayAgoANDHigh8DayAgo
+       , High8DayAgo - High9DayAgo AS DollarDiffHigh8DayAgoANDHigh9DayAgo
+       , High9DayAgo - High10DayAgo AS DollarDiffHigh9DayAgoANDHigh10DayAgo
+       
+       , (Close - Close1DayAgo) / Close1DayAgo AS DiffCloseANDClose1DayAgoOVERClose1DayAgo
+       , (Close - Close2DayAgo) / Close2DayAgo AS DiffCloseANDClose2DayAgoOVERClose2DayAgo
+       , (Close - Close3DayAgo) / Close3DayAgo AS DiffCloseANDClose3DayAgoOVERClose3DayAgo
+       , (Close - Close4DayAgo) / Close4DayAgo AS DiffCloseANDClose4DayAgoOVERClose4DayAgo
+       , (Close - Close5DayAgo) / Close5DayAgo AS DiffCloseANDClose5DayAgoOVERClose5DayAgo 
+       , (Close - Close10DayAgo) / Close10DayAgo AS DiffCloseANDClose10DayAgoOVERClose10DayAgo 
+  
+       , ((Close - Close1DayAgo) / Close1DayAgo ) - (Close - (LAG(Close, 10) OVER (ORDER BY Date_Rank DESC))) / (LAG(Close, 10) OVER (ORDER BY Date_Rank DESC)) AS NetLast1DaysMINUSNetLast10Days
+       , ((Close - Close1DayAgo) / Close1DayAgo ) - (Close - (LAG(Close, 20) OVER (ORDER BY Date_Rank DESC))) / (LAG(Close, 20) OVER (ORDER BY Date_Rank DESC)) AS NetLast1DaysMINUSNetLast20Days
+       , ((Close - Close1DayAgo) / Close1DayAgo ) - (Close - (LAG(Close, 30) OVER (ORDER BY Date_Rank DESC))) / (LAG(Close, 30) OVER (ORDER BY Date_Rank DESC)) AS NetLast1DaysMINUSNetLast30Days 
+       , ((Close - Close2DayAgo) / Close2DayAgo ) - (Close - (LAG(Close, 10) OVER (ORDER BY Date_Rank DESC))) / (LAG(Close, 10) OVER (ORDER BY Date_Rank DESC)) AS NetLast2DaysMINUSNetLast10Days
+       , ((Close - Close2DayAgo) / Close2DayAgo ) - (Close - (LAG(Close, 20) OVER (ORDER BY Date_Rank DESC))) / (LAG(Close, 20) OVER (ORDER BY Date_Rank DESC)) AS NetLast2DaysMINUSNetLast20Days
+       , ((Close - Close2DayAgo) / Close2DayAgo ) - (Close - (LAG(Close, 30) OVER (ORDER BY Date_Rank DESC))) / (LAG(Close, 30) OVER (ORDER BY Date_Rank DESC)) AS NetLast2DaysMINUSNetLast30Days
+       , ((Close - Close3DayAgo) / Close3DayAgo ) - (Close - (LAG(Close, 10) OVER (ORDER BY Date_Rank DESC))) / (LAG(Close, 10) OVER (ORDER BY Date_Rank DESC)) AS NetLast3DaysMINUSNetLast10Days
+       , ((Close - Close3DayAgo) / Close3DayAgo ) - (Close - (LAG(Close, 20) OVER (ORDER BY Date_Rank DESC))) / (LAG(Close, 20) OVER (ORDER BY Date_Rank DESC)) AS NetLast3DaysMINUSNetLast20Days
+       , ((Close - Close3DayAgo) / Close3DayAgo ) - (Close - (LAG(Close, 30) OVER (ORDER BY Date_Rank DESC))) / (LAG(Close, 30) OVER (ORDER BY Date_Rank DESC)) AS NetLast3DaysMINUSNetLast30Days
+ 
+ 
+       , (((Close - Close1DayAgo) / Close1DayAgo ) - ((Close1Dayago - Close5DayAgo) / Close5DayAgo) ) AS NetLast1DaysMINUSNetPrevious4Days
+       , (((Close - Close1DayAgo) / Close1DayAgo ) - ((Close1Dayago - Close6DayAgo) / Close6DayAgo) ) AS NetLast1DaysMINUSNetPrevious5Days
+       , (((Close - Close1DayAgo) / Close1DayAgo ) - ((Close1Dayago - Close7DayAgo) / Close7DayAgo) ) AS NetLast1DaysMINUSNetPrevious6Days
+       , (((Close - Close2DayAgo) / Close2DayAgo ) - ((Close2Dayago - Close6DayAgo) / Close6DayAgo) ) AS NetLast2DaysMINUSNetPrevious4Days
+       , (((Close - Close2DayAgo) / Close2DayAgo ) - ((Close2Dayago - Close7DayAgo) / Close7DayAgo) ) AS NetLast2DaysMINUSNetPrevious5Days
+       , (((Close - Close2DayAgo) / Close2DayAgo ) - ((Close2Dayago - Close8DayAgo) / Close8DayAgo) ) AS NetLast2DaysMINUSNetPrevious6Days
+       , (((Close - Close3DayAgo) / Close3DayAgo ) - ((Close3Dayago - Close7DayAgo) / Close7DayAgo) ) AS NetLast3DaysMINUSNetPrevious4Days
+       , (((Close - Close3DayAgo) / Close3DayAgo ) - ((Close3Dayago - Close8DayAgo) / Close8DayAgo) ) AS NetLast3DaysMINUSNetPrevious5Days
+       , (((Close - Close3DayAgo) / Close3DayAgo ) - ((Close3Dayago - Close9DayAgo) / Close9DayAgo) ) AS NetLast3DaysMINUSNetPrevious6Days
+       
+       , (((Close - Close5DayAgo) / Close5DayAgo ) - ((Close5Dayago - Close10DayAgo) / Close10DayAgo) ) AS NetLast5DaysMINUSNetPrevious5Days
+       
+       , (((Close - Close5DayAgo) / Close5DayAgo ) - ((Close - Close10DayAgo) / Close10DayAgo) ) AS NetLast5DaysMINUSNetLast10Days
+       
+       /*, ((Close - Close5DayAgo) / Close5DayAgo ) - ( Close - (LAG(Close, 20) OVER (ORDER BY Date_Rank DESC)) / (LAG(Close, 20) OVER (ORDER BY Date_Rank))) AS NetLast5DaysMINUSNetLast20Days*/
+       , ((Close - Close5DayAgo) / Close5DayAgo ) - (Close - (LAG(Close, 20) OVER (ORDER BY Date_Rank DESC))) / (LAG(Close, 20) OVER (ORDER BY Date_Rank DESC)) AS NetLast5DaysMINUSNetLast20Days
+       
+       
+       
+       , (Close1DayAgo - Close2DayAgo) / Close2DayAgo AS DiffClose1DayAgoANDClose2DayAgoOVERClose2DayAgo
+       , (Close1DayAgo - Close3DayAgo) / Close3DayAgo AS DiffClose1DayAgoANDClose3DayAgoOVERClose3DayAgo
+       , (Close1DayAgo - Close4DayAgo) / Close4DayAgo AS DiffClose1DayAgoANDClose4DayAgoOVERClose4DayAgo
+       , (Close1DayAgo - Close5DayAgo) / Close5DayAgo AS DiffClose1DayAgoANDClose5DayAgoOVERClose5DayAgo 
+       , (Close1DayAgo - Close10DayAgo) / Close10DayAgo AS DiffClose1DayAgoANDClose10DayAgoOVERClose10DayAgo
+       , (Close2DayAgo - Close3DayAgo) / Close3DayAgo AS DiffClose2DayAgoANDClose3DayAgoOVERClose3DayAgo 
+       , (Close3DayAgo - Close4DayAgo) / Close4DayAgo AS DiffClose3DayAgoANDClose4DayAgoOVERClose4DayAgo
+       , (Close4DayAgo - Close5DayAgo) / Close5DayAgo AS DiffClose4DayAgoANDClose5DayAgoOVERClose5DayAgo 
+       , (Close5DayAgo - Close6DayAgo) / Close6DayAgo AS DiffClose5DayAgoANDClose6DayAgoOVERClose6DayAgo 
+       , (Close6DayAgo - Close7DayAgo) / Close7DayAgo AS DiffClose6DayAgoANDClose7DayAgoOVERClose7DayAgo 
+       , (Close7DayAgo - Close8DayAgo) / Close8DayAgo AS DiffClose7DayAgoANDClose8DayAgoOVERClose8DayAgo 
+       , (Close8DayAgo - Close9DayAgo) / Close9DayAgo AS DiffClose8DayAgoANDClose9DayAgoOVERClose9DayAgo 
+       , (Close9DayAgo - Close10DayAgo) / Close10DayAgo AS DiffClose9DayAgoANDClose10DayAgoOVERClose10DayAgo
+       
+       , (High1DayAgo - Low1DayAgo) / (High2DayAgo - Low2DayAgo) AS RangeDayAgoOVERRange2DayAgo 
+       , (High1DayAgo - Low1DayAgo) / (High3DayAgo - Low3DayAgo) AS Range1DayAgoOVERRange3DayAgo
+       , (High1DayAgo - Low1DayAgo) / (High4DayAgo - Low4DayAgo) AS Range1DayAgoOVERRange4DayAgo 
+       , (High1DayAgo - Low1DayAgo) / (High5DayAgo - Low5DayAgo) AS Range1DayAgoOVERRange5DayAgo 
+       , (High1DayAgo - Low1DayAgo) / (High10DayAgo - Low10DayAgo) AS Range1DayAgoOVERRange10DayAgo 
+       
+       , (High2DayAgo - Low2DayAgo) / (High3DayAgo - Low3DayAgo) AS Range2DayAgoOVERRange3DayAgo 
+       , (High3DayAgo - Low3DayAgo) / (High4DayAgo - Low4DayAgo) AS Range3DayAgoOVERRange4DayAgo 
+       , (High4DayAgo - Low4DayAgo) / (High5DayAgo - Low5DayAgo) AS Range4DayAgoOVERRange5DayAgo 
+       , (High5DayAgo - Low5DayAgo) / (High6DayAgo - Low6DayAgo) AS Range5DayAgoOVERRange6DayAgo
+       , (High6DayAgo - Low6DayAgo) / (High7DayAgo - Low7DayAgo) AS Range6DayAgoOVERRange7DayAgo
+       , (High7DayAgo - Low7DayAgo) / (High8DayAgo - Low8DayAgo) AS Range7DayAgoOVERRange8DayAgo 
+       , (High8DayAgo - Low8DayAgo) / (High9DayAgo - Low9DayAgo) AS Range8DayAgoOVERRange9DayAgo 
+       , (High9DayAgo - Low9DayAgo) / (High10DayAgo - Low10DayAgo) AS Range9DayAgoOVERRange10DayAgo
+
+       , (High10DayAgo - High7DayAgo) / (High3DayAgo - High1DayAgo) AS DiffHigh10DayAgoAND7DayAgoOVERDiffHigh3DayAgoAnd1DayAgo
+       , (High9DayAgo - High6DayAgo) / (High3DayAgo - High1DayAgo) AS DiffHigh9DayAgoAND6DayAgoOVERDiffHigh3DayAgoAnd1DayAgo 
+       , (High8DayAgo - High5DayAgo) / (High3DayAgo - High1DayAgo) AS DiffHigh8DayAgoAND5DayAgoOVERDiffHigh3DayAgoAnd1DayAgo  
+       , (High7DayAgo - High4DayAgo) / (High3DayAgo - High1DayAgo) AS DiffHigh7DayAgoAND4DayAgoOVERDiffHigh3DayAgoAnd1DayAgo 
+    FROM stock_last_10_days
+  )
+  , 
+  cte1 AS 
+  (
+    SELECT CASE WHEN close - close1DayAgo >= 0 THEN 1 ELSE 0 END AS PositiveDay
+      , CASE WHEN close - close1DayAgo < 0 THEN 1 ELSE 0 END AS NegativeDay
+      , *
+    FROM cte0
+  )
+  , cte2 AS
+  (
+    SELECT SUM(CASE WHEN ( LAG(PositiveDay, 1) OVER (ORDER BY Date_Rank) = 0)  AND PositiveDay = 1 THEN 1 ELSE 0 END) OVER (ORDER BY Date_Rank) PositiveDayGroupRaw
+      , SUM(CASE WHEN ( LAG(NegativeDay, 1) OVER (ORDER BY Date_Rank) = 0)  AND NegativeDay = 1 THEN 1 ELSE 0 END) OVER (ORDER BY Date_Rank) NegativeDayGroupRaw
+      , *
+    FROM cte1
+  )
+  , 
+  cte3 AS 
+  (
+    SELECT CASE WHEN PositiveDay = 0 THEN -1 ELSE PositiveDayGroupRaw END AS PositiveDayGroup
+      , CASE WHEN NegativeDay = 0 THEN -1 ELSE NegativeDayGroupRaw END AS NegativeDayGroup
+      , *
+    FROM cte2
+  )
+  , 
+  cte4 AS 
+  (
+    SELECT CASE WHEN PositiveDay = 1 THEN RANK() OVER (PARTITION BY PositiveDayGroup ORDER BY Date_Rank DESC) ELSE 0 END AS PositiveDayInARow
+      , CASE WHEN NegativeDay = 1 THEN RANK() OVER (PARTITION BY NegativeDayGroup ORDER BY Date_Rank DESC) ELSE 0 END * -1 AS NegativeDayInARow
+      , * 
+    FROM cte3
+  )
+ 
+ 
+  SELECT CAST(
+           (
+             CASE 
+               WHEN PositiveDay = 1 THEN PositiveDayInARow
+               ELSE NegativeDayInARow
+             END
+           )
+           AS NUMERIC(10,4)
+           ) AS Trend
+     , CASE 
+         WHEN PositiveDay = 1 THEN PositiveDayInARow
+         ELSE 0
+       END AS PositiveTrend
+     , CASE 
+         WHEN NegativeDay = 1 THEN NegativeDayInARow
+         ELSE 0
+       END AS NegativeTrend
+     , *
+  FROM cte4
+  ORDER BY Date_Rank ASC
+ """)
 
 
 # COMMAND ----------
 
-ignored_columns = ['id', 'label', 'date', 'open', 'high', 'low', 'volume', 'close', 'Adj Close', 'Date_Rank', 'DateRank1DayBehind', 'Date1DayBehind', \
-         'DateRank2DayBehind', 'Date2DayBehind', 'Date3DayBehind', 'DateRank3DayBehind', 'DateRank4DayBehind', 'Date4DayBehind', 'Date5DayBehind', 'DateRank5DayBehind', \
-         'DateRank6DayBehind', 'Date6DayBehind', 'Date7DayBehind', 'DateRank7DayBehind', 'DateRank8DayBehind', 'Date8DayBehind', 'Date9DayBehind', 'DateRank9DayBehind', \
-         'DateRank10DayBehind','Date10DayBehind','HLAbsoluteVolatility', 'OCVolatility','Open1DayAgo', 'High1DayAgo', 'Low1DayAgo', 'Close1DayAgo', \
-         'Open2DayAgo', 'High2DayAgo', 'Low2DayAgo', 'Close2DayAgo', 'Open3DayAgo', 'High3DayAgo', 'Low3DayAgo', 'Close3DayAgo', 'Open4DayAgo', 'High4DayAgo', \
-         'Low4DayAgo', 'Close4DayAgo', 'Open5DayAgo', 'High5DayAgo', 'Low5DayAgo', 'Close5DayAgo', 'Open6DayAgo', 'High6DayAgo', 'Low6DayAgo', 'Close6DayAgo', \
-         'Open7DayAgo', 'High7DayAgo', 'Low7DayAgo', 'Close7DayAgo', 'Open8DayAgo', 'High8DayAgo', 'Low8DayAgo', 'Close8DayAgo', 'Open9DayAgo', 'High9DayAgo', \
-         'Low9DayAgo', 'Close9DayAgo', 'Open10DayAgo', 'High10DayAgo', 'Low10DayAgo', 'Close10DayAgo', 'BiRegrLabel']
+"""
+Ignored Columns 
+Sometimes the basic columns or the date are useful to have in the final dataframe.
+They are deperated for easier developement (because it's quicker to comment them out)
+"""
+label_columns_used = ['BuyBeforeCloseTodaySoYouMakeMoneyTomorrow']
 
-#feature_cols_temp = training_df.columns
-#feature_cols_temp = ['DiffHigh1DayAgoTOHigh2DayAgo', 'DiffHigh9DayAgoFROMHigh10DayAgo', 'DiffClose3DayAgoFROMClose4DayAgo', 'DiffClose5DayAgoFROMClose6DayAgo', 'DiffClose6DayAgoFROMClose7DayAgo',
-#                     'DiffClose9DayAgoFROMClose10DayAgo']
+date_column = ['date']
+basic_columns = ['open', 'high', 'low', 'volume', 'close',]
+label_columns = ['label', 'BuyBeforeCloseTodaySoYouMakeMoneyTomorrow', 'NextDayClose']
+ignored_columns = ( 
+#   date_column + 
+  list(set(label_columns) - set(label_columns_used)) +
+  basic_columns + 
+  [
+    'Adj Close', 'Date_Rank', 'DateRank1DayBehind', 'Date1DayBehind', 'DateRank2DayBehind', 'Date2DayBehind', 'Date3DayBehind', 'DateRank3DayBehind', 
+    'DateRank4DayBehind', 'Date4DayBehind', 'Date5DayBehind', 'DateRank5DayBehind', 'DateRank6DayBehind', 'Date6DayBehind', 'Date7DayBehind', 'DateRank7DayBehind', 
+    'DateRank8DayBehind', 'Date8DayBehind', 'Date9DayBehind', 'DateRank9DayBehind', 'DateRank10DayBehind','Date10DayBehind','HLAbsoluteVolatility', 'OCVolatility',
+    'Open1DayAgo', 'High1DayAgo', 'Low1DayAgo', 'Close1DayAgo', 'Open2DayAgo', 'High2DayAgo', 'Low2DayAgo', 'Close2DayAgo', 'Open3DayAgo', 'High3DayAgo', 'Low3DayAgo', 
+    'Close3DayAgo', 'Open4DayAgo', 'High4DayAgo', 'Low4DayAgo', 'Close4DayAgo', 'Open5DayAgo', 'High5DayAgo', 'Low5DayAgo', 'Close5DayAgo', 'Open6DayAgo', 'High6DayAgo', 
+    'Low6DayAgo', 'Close6DayAgo', 'Open7DayAgo', 'High7DayAgo', 'Low7DayAgo', 'Close7DayAgo', 'Open8DayAgo', 'High8DayAgo', 'Low8DayAgo', 'Close8DayAgo', 'Open9DayAgo', 
+    'High9DayAgo', 'Low9DayAgo', 'Close9DayAgo', 'Open10DayAgo', 'High10DayAgo', 'Low10DayAgo', 'Close10DayAgo', 'BiRegrLabel', 'PositiveDayInARow', 'NegativeDayInARow', 
+    'PositiveDayGroup', 'NegativeDayGroup', 'PositiveDayGroupRaw', 'NegativeDayGroupRaw', 'NegativeDay', 'Volume1DayAgo', 'Volume2DayAgo', 'Volume3DayAgo', 
+    'Volume4DayAgo', 'Volume5DayAgo', 'Volume6DayAgo', 'Volume7DayAgo', 'Volume8DayAgo', 'Volume9DayAgo', 'Volume10DayAgo'
+  ]
+)
 
+"""
+Declare which columns will be used for features. 
+We use the ignored_columns list above to exclude ones that are used just for feature creation
 
-#feature_selects = [col(c).cast("float") for c in feature_cols_temp if c not in ignored_columns]  
+For some development might need to add columsn in like the label and date, which will need to 
+be taken out later
+
+For quick testing, just use subset of columns below
+"""
+# feature_cols = [
+#   'Trend', 
+#   'date',
+#   'BuyBeforeCloseTodaySoYouMakeMoneyTomorrow', 
+#   'NetLast5DaysMINUSNetPrevious5Days', 
+#   'NetLast5DaysMINUSNetLast10Days', 
+#   'NetLast5DaysMINUSNetLast20Days', 
+#  ]
+
 feature_cols = [c for c in features_df.columns if c not in ignored_columns] 
 
-#dnf2 = training_df.select(*feature_selects, col("OCVolatility")).withColumnRenamed("OCVolatility", "label")
-features_trimmed_df = features_df.select(*feature_cols).withColumnRenamed("BuyFlag", "label")
+"""
+Delete the most recent row because there is no label 
+Rename the label_column to "label"
+
+"""
+most_recent_exclude_expr = "Date_Rank <> 1"
+
+#features_trimmed_df = features_df.filter("Date_Rank <> 1").select(*feature_cols).withColumnRenamed("BuyBeforeCloseTodaySoYouMakeMoneyTomorrow", "label")
+features_trimmed_df = (
+  features_df
+    .filter(most_recent_exclude_expr)
+    .select(*feature_cols)
+    .withColumnRenamed(label_used, "label")
+)
+                            
+#take out columns added for description, these columns are just for the features Vector                              
+feature_trimmed_cols = [c for c in features_trimmed_df.columns if c not in ['label', 'date']] 
+
+#display(features_trimmed_df)
+
+#write to temp table
 features_trimmed_df.createOrReplaceTempView("stock_features")
 
 # COMMAND ----------
 
-# MAGIC %fs
-# MAGIC mkdirs /ml2/FirstAutoMLRun/inference
+# MAGIC %sql
+# MAGIC --SELECT COUNT(*) FROM stock_features WHERE label = 1
+# MAGIC SELECT * FROM stock_features WHERE label = 1
 
 # COMMAND ----------
 
-features_trimmed_df.write.mode("overwrite").parquet("/ml2/stock_features")
+# MAGIC %scala 
+# MAGIC import org.apache.spark.ml.regression.GeneralizedLinearRegression
+# MAGIC import org.apache.spark.ml.feature.PolynomialExpansion
+# MAGIC import org.apache.spark.ml.feature.VectorAssembler
+# MAGIC import org.apache.spark.ml.feature.PCA
+# MAGIC import org.apache.spark.mllib.linalg.Vectors
+# MAGIC import org.apache.spark.sql.DataFrame
+# MAGIC import org.apache.spark.sql.functions._
+# MAGIC import org.apache.spark.sql.types._
+# MAGIC 
+# MAGIC val vudt = udf((dv: org.apache.spark.ml.linalg.DenseVector) => 
+# MAGIC                {
+# MAGIC                  for (c <- dv.getClass.getFields) yield c.getName
+# MAGIC                }.mkString(", ")
+# MAGIC )
+# MAGIC 
+# MAGIC val featuresTrimmedDF = spark.read.table("stock_features")
+# MAGIC //val featuresTrimmedDF = spark.sql("SELECT * FROM stock_features WHERE date > '2010-01-01'")
+# MAGIC 
+# MAGIC val featureCols = featuresTrimmedDF.columns.filter(c => !(Array("label", "date").contains(c)))
+# MAGIC 
+# MAGIC // val featuresAndLabelDf = logRegAssembler.setHandleInvalid("skip").transform(featuresTrimmedDF)
+# MAGIC 
+# MAGIC val featuresDF = new VectorAssembler()
+# MAGIC   .setInputCols(featureCols)
+# MAGIC   .setOutputCol("constructedFeatures")
+# MAGIC   .setHandleInvalid("skip")
+# MAGIC   .transform(featuresTrimmedDF)
+# MAGIC 
+# MAGIC val pcaFeaturesDF = new PCA()
+# MAGIC   .setInputCol("constructedFeatures")
+# MAGIC   .setOutputCol("pcaFeatures")
+# MAGIC   .setK(3)
+# MAGIC   .fit(featuresDF)
+# MAGIC   .transform(featuresDF)
+# MAGIC 
+# MAGIC val polyExpansionDF = new PolynomialExpansion()
+# MAGIC   .setInputCol("constructedFeatures")
+# MAGIC   .setOutputCol("polyFeatures")
+# MAGIC   .setDegree(2)
+# MAGIC   .transform(pcaFeaturesDF)
+# MAGIC 
+# MAGIC val colArray = Array(
+# MAGIC //   "constructedFeatures" 
+# MAGIC    "pcaFeatures"
+# MAGIC //   , "polyFeatures"
+# MAGIC ) ++ featureCols
+# MAGIC 
+# MAGIC val multiVectorAssembler = new VectorAssembler()
+# MAGIC     .setInputCols(colArray)
+# MAGIC     .setOutputCol("features")
+# MAGIC 
+# MAGIC val exportDF = multiVectorAssembler.setHandleInvalid("skip").transform(polyExpansionDF).select("label", "features")
+# MAGIC 
+# MAGIC println(exportDF.printSchema)
+# MAGIC exportDF.createOrReplaceTempView("pca")
+# MAGIC 
+# MAGIC // display(pca.transform(featuresAndLabelDf))
+# MAGIC // val featuresAndLabelDf = assembler.setHandleInvalid("skip").transform(featuresTrimmedDF)
+# MAGIC 
+# MAGIC val glr = new GeneralizedLinearRegression()
+# MAGIC   .setFamily("gaussian")
+# MAGIC   .setLink("identity")
+# MAGIC   .setMaxIter(10)
+# MAGIC   .setRegParam(0.3)
+# MAGIC 
+# MAGIC val model = glr.fit(exportDF)
+# MAGIC 
+# MAGIC // Print the coefficients and intercept for generalized linear regression model
+# MAGIC println(s"Coefficients: ${model.coefficients}")
+# MAGIC println(s"Intercept: ${model.intercept}")
+# MAGIC 
+# MAGIC // Summarize the model over the training set and print out some metrics
+# MAGIC val summary = model.summary
+# MAGIC println(s"Count of Rows: ${featuresTrimmedDF.count}")
+# MAGIC println(s"Coefficient Standard Errors: ${summary.coefficientStandardErrors.mkString(",")}")
+# MAGIC println(s"T Values: ${summary.tValues.mkString(",")}")
+# MAGIC println(s"P Values: ${summary.pValues.mkString(",")}")
+# MAGIC println(s"Dispersion: ${summary.dispersion}")
+# MAGIC println(s"Null Deviance: ${summary.nullDeviance}")
+# MAGIC println(s"Residual Degree Of Freedom Null: ${summary.residualDegreeOfFreedomNull}")
+# MAGIC println(s"Deviance: ${summary.deviance}")
+# MAGIC println(s"Residual Degree Of Freedom: ${summary.residualDegreeOfFreedom}")
+# MAGIC println(s"AIC: ${summary.aic}")
+# MAGIC println("Deviance Residuals: ")
+# MAGIC summary.residuals().show()
 
 # COMMAND ----------
 
@@ -293,205 +565,3 @@ features_trimmed_df.write.mode("overwrite").parquet("/ml2/stock_features")
 # MAGIC 
 # MAGIC //val runner = FamilyRunner(data, Array(randomForestConfig, gbtConfig, logConfig)).execute()
 # MAGIC val runner = FamilyRunner(data, Array(gbtConfig)).execute()
-
-# COMMAND ----------
-
-seed = 1800009193
-(split_60_df, split_a_20_df, split_b_20_df) = features_trimmed_df.randomSplit([60.0, 20.0, 20.0], seed)
-training_df = split_60_df
-
-assembler = VectorAssembler(
-    inputCols=feature_cols,
-    outputCol='features')
-
-df2 = assembler.setHandleInvalid("skip").transform(features_trimmed_df)
-
-mapping= {}
-counter= 0 
-for c in feature_cols:
-  s = "0" + str(counter) 
-  mapping.update({"features_" + s[-2:] : c})
-  counter = counter + 1
-
-
-df6 = df2.select(col("label").cast("double").alias("label"), col("features").alias("features"))
-
-#display(df6)
-
-#glr = GeneralizedLinearRegression(family="gaussian", link="identity", maxIter=10, regParam=0.3)
-mlr = LogisticRegression(maxIter=10, regParam=0.3, elasticNetParam=0.8, family="multinomial")
-
-#model = glr.fit(df6)
-model = mlr.fit(df6)
-
-# print("Coefficients: " + str(model.coefficients))
-# print("Intercept: " + str(model.intercept))
-print("Coefficients: " + str(model.coefficientMatrix))
-print("Intercept: " + str(model.interceptVector))
-
-# COMMAND ----------
-
-from pyspark.ml.classification import LogisticRegression
-
-# Extract the summary from the returned LogisticRegressionModel instance trained
-# in the earlier example
-trainingSummary = model.summary
-
-# Obtain the objective per iteration
-objectiveHistory = trainingSummary.objectiveHistory
-print("objectiveHistory:")
-for objective in objectiveHistory:
-    print(objective)
-
-# Obtain the receiver-operating characteristic as a dataframe and areaUnderROC.
-trainingSummary.roc.show()
-print("areaUnderROC: " + str(trainingSummary.areaUnderROC))
-
-# Set the model threshold to maximize F-Measure
-fMeasure = trainingSummary.fMeasureByThreshold
-maxFMeasure = fMeasure.groupBy().max('F-Measure').select('max(F-Measure)').head()
-bestThreshold = fMeasure.where(fMeasure['F-Measure'] == maxFMeasure['max(F-Measure)']) \
-    .select('threshold').head()['threshold']
-mlr.setThreshold(bestThreshold)
-
-# COMMAND ----------
-
-model.summary
-# summary = model.summary
-# print("Coefficient Standard Errors: " + str(summary.coefficientStandardErrors))
-# print("T Values: " + str(summary.tValues))
-# print("P Values: " + str(summary.pValues))
-# print("Dispersion: " + str(summary.dispersion))
-# print("Null Deviance: " + str(summary.nullDeviance))
-# print("Residual Degree Of Freedom Null: " + str(summary.residualDegreeOfFreedomNull))
-# print("Deviance: " + str(summary.deviance))
-# print("Residual Degree Of Freedom: " + str(summary.residualDegreeOfFreedom))
-# print("AIC: " + str(summary.aic))
-# print("Deviance Residuals: ")
-# summary.residuals().show()
-
-# COMMAND ----------
-
-import operator
-sorted(mapping.items(), key=operator.itemgetter(0))
-
-# COMMAND ----------
-
-toy_df = spark.range(10).withColumn("predictor_one", col("id") % 2).withColumn("predictor_two", col("id") % 5).withColumn("predictor_three", (col("id") - .5) * .9)
-assembler = VectorAssembler(
-    inputCols=["predictor_two", "predictor_one"],
-    outputCol='features')
-
-assemble_df = assembler.setHandleInvalid("skip").transform(toy_df)
-# display(assemble_df)
-
-next_df = assemble_df.select(col("id").cast("double").alias("label"), col("features").alias("features"))
-
-# display(next_df)
-
-glr = GeneralizedLinearRegression(family="gaussian", link="identity", maxIter=10, regParam=0.3)
-model = glr.fit(next_df)
-
-model.summary
-
-# COMMAND ----------
-
-
-# display(dnf4)
-#       , col("Open1DayAgo").cast("float")
-#       , col("High1DayAgo").cast("float")
-#       , col("Low1DayAgo").cast("float")
-#       , col("Close1DayAgo").cast("float")
-#       , col("Volume1DayAgo").cast("float")
-#       , col("Open2DayAgo").cast("float")
-#       , col("High2DayAgo").cast("float")
-#       , col("Low2DayAgo").cast("float")
-#       , col("Close2DayAgo").cast("float")
-#       , col("Volume2DayAgo").cast("float")
-#       , col("Open3DayAgo").cast("float")
-#       , col("High3DayAgo").cast("float")
-#       , col("Low3DayAgo").cast("float")
-#       , col("Close3DayAgo").cast("float")
-#       , col("Volume3DayAgo").cast("float")
-#       , col("Open4DayAgo").cast("float")
-#       , col("High4DayAgo").cast("float")
-#       , col("Low4DayAgo").cast("float")
-#       , col("Close4DayAgo").cast("float")
-#       , col("Volume4DayAgo").cast("float")
-#       , col("Open5DayAgo").cast("float")
-#       , col("High5DayAgo").cast("float")
-#       , col("Low5DayAgo").cast("float")
-#       , col("Close5DayAgo").cast("float")
-#       , col("Volume5DayAgo").cast("float")
-#       , col("Open6DayAgo").cast("float")
-#       , col("High6DayAgo").cast("float")
-#       , col("Low6DayAgo").cast("float")
-#       , col("Close6DayAgo").cast("float")
-#       , col("Volume6DayAgo").cast("float")
-#       , col("Open7DayAgo").cast("float")
-#       , col("High7DayAgo").cast("float")
-#       , col("Low7DayAgo").cast("float")
-#       , col("Close7DayAgo").cast("float")
-#       , col("Volume7DayAgo").cast("float")
-#       , col("Open8DayAgo").cast("float")
-#       , col("High8DayAgo").cast("float")
-#       , col("Low8DayAgo").cast("float")
-#       , col("Close8DayAgo").cast("float")
-#       , col("Volume8DayAgo").cast("float")
-#       , col("Open9DayAgo").cast("float")
-#       , col("High9DayAgo").cast("float")
-#       , col("Low9DayAgo").cast("float")
-#       , col("Close9DayAgo").cast("float")
-#       , col("Volume9DayAgo").cast("float")
-#       , col("Open10DayAgo").cast("float")
-#       , col("High10DayAgo").cast("float")
-#       , col("Low10DayAgo").cast("float")
-#       , col("Close10DayAgo").cast("float")
-#       , col("Volume10DayAgo").cast("float")
-#       , col("HLAbsoluteVolatility").cast("float")
-#       , col("DiffHighTodayTOHigh2DayAgo").cast("float")
-#       , col("DiffHigh2DayAgoFROMHigh3DayAgo").cast("float")
-#       , col("DiffHigh3DayAgoFROMHigh4DayAgo").cast("float")
-#       , col("DiffHigh4DayAgoFROMHigh5DayAgo").cast("float")
-#       , col("DiffHigh5DayAgoFROMHigh6DayAgo").cast("float")
-#       , col("DiffHigh6DayAgoFROMHigh7DayAgo").cast("float")
-#       , col("DiffHigh7DayAgoFROMHigh8DayAgo").cast("float")
-#       , col("DiffHigh8DayAgoFROMHigh9DayAgo").cast("float")
-#       , col("DiffHigh9DayAgoFROMHigh10DayAgo").cast("float")
-#       , col("DiffHighTodayFROMHigh3DayAgo").cast("float")
-#       , col("DiffHighTodayFROMHigh4DayAgo").cast("float")
-#       , col("DiffHighTodayFROMHigh5DayAgo").cast("float")
-#       , col("DiffHighTodayFROMHigh6DayAgo").cast("float")
-#       , col("DiffCloseTodayFROMClose2DayAgo").cast("float")
-#       , col("DiffClose2DayAgoFROMClose3DayAgo").cast("float")
-#       , col("DiffClose3DayAgoFROMClose4DayAgo").cast("float")
-#       , col("DiffClose4DayAgoFROMClose5DayAgo").cast("float")
-#       , col("DiffClose5DayAgoFROMClose6DayAgo").cast("float")
-#       , col("DiffClose6DayAgoFROMClose7DayAgo").cast("float")
-#       , col("DiffClose7DayAgoFROMClose8DayAgo").cast("float")
-#       , col("DiffClose8DayAgoFROMClose9DayAgo").cast("float")
-#       , col("DiffClose9DayAgoFROMClose10DayAgo").cast("float")
-#       , col("DiffCloseTodayFROMClose3DayAgo").cast("float")
-#       , col("DiffCloseTodayFROMClose4DayAgo").cast("float")
-#       , col("DiffCloseTodayFROMClose5DayAgo").cast("float")
-#       , col("DiffCloseTodayFROMClose6DayAgo").cast("float")
-#       , col("VolatilityTodayOVERVolatility2DaysAgo").cast("float")
-#       , col("Volatility2DaysAgoOVERVolatility3DaysAgo").cast("float")
-#       , col("Volatility3DaysAgoOVERVolatility4DaysAgo").cast("float")
-#       , col("Volatility4DaysAgoOVERVolatility5DaysAgo").cast("float")
-#       , col("Volatility5DaysAgoOVERVolatility6DaysAgo").cast("float")
-#       , col("Volatility6DaysAgoOVERVolatility7DaysAgo").cast("float")
-#       , col("Volatility7DaysAgoOVERVolatility8DaysAgo").cast("float")
-#       , col("Volatility8DaysAgoOVERVolatility9DaysAgo").cast("float")
-#       , col("Volatility9DaysAgoOVERVolatility10DaysAgo").cast("float")
-#       , col("VolatilityTodayOVERVolatility3DaysAgo").cast("float")
-#       , col("VolatilityTodayOVERVolatility4DaysAgo").cast("float")
-#       , col("VolatilityTodayOVERVolatility5DaysAgo").cast("float")
-#       , col("VolatilityTodayOVERVolatility10DaysAgo").cast("float"))
-
-# display(dnf4)
-
-# ignore = ['id', 'label', 'Date', 'Open', 'High', 'Low', 'Volume', 'Adj Close', 'Date_Rank', 'DateRank1DayBehind', 'Date1DayBehind' \
-#          'DateRank2DayBehind', 'Date2DayBehind', 'Date3DayBehind', 'DateRank3DayBehind', 'DateRank4DayBehind', 'Date4DayBehind', 'Date5DayBehind', 'DateRank5DayBehind' \
-#          'DateRank6DayBehind', 'Date6DayBehind', 'Date7DayBehind', 'DateRank7DayBehind', 'DateRank8DayBehind', 'Date8DayBehind', 'Date9DayBehind', 'DateRank9DayBehind' \
-#          'HLAbsoluteVolatility', 'OCVolatility']
