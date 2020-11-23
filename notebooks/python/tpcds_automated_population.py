@@ -49,7 +49,7 @@ dbutils.fs.mkdirs(delta_path)
 dbutils.fs.mkdirs(raw_data_path)
 dbutils.fs.mkdirs(schemas_path)
 sql("""
-  CREATE DATABASE {db} IF NOT EXISTS 
+  CREATE DATABASE IF NOT EXISTS {db}
   COMMENT 'This was created for the TPC-DS Auto Generation' 
   LOCATION '{delta_path}'
   """.format(db=db, delta_path=delta_path))
