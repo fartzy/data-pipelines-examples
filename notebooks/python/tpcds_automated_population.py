@@ -1,10 +1,4 @@
 # Databricks notebook source
-dbutils.widgets.text("path_prefix", "/tpcds_populate_automate")
-dbutils.widgets.text("scale_factor", "100")
-dbutils.widgets.text("db_prefix", "tpcds_migrate_sf")
-
-# COMMAND ----------
-
 import fnmatch
 import io
 import json 
@@ -22,6 +16,14 @@ from pyspark.sql.types import (
   StructType,
   StructField
 )
+
+# COMMAND ----------
+
+# widgets and defaults
+
+dbutils.widgets.text("path_prefix", "/tpcds_populate_automate")
+dbutils.widgets.text("scale_factor", "100")
+dbutils.widgets.text("db_prefix", "tpcds_sf")
 
 # COMMAND ----------
 
@@ -83,11 +85,12 @@ sql("""
 
 # COMMAND ----------
 
-# create fuse script 
+# create script to execute dsdgen for every child process  
 script_path = "/dbfs{dbfs_script_path}/dsdgen.sh".format(dbfs_script_path=dbfs_script_path)
+fuse_raw_data_path = "/dbfs{raw_data_path}/".format(raw_data_path=raw_data_path)
 os.chdir("/databricks/driver/tpcds-kit/tools")
 
-# use all available processes except for one for overhead 
+# use all available processes ( except for one which is left for overhead )
 N = multiprocessing.cpu_count() - 1
 
 # create a script to execute - one long string would have to use the shell arg set to True
@@ -101,17 +104,24 @@ with open(script_path,"w") as f:
       f.write("#!/bin/sh\n")
       
     # execute in background and run in parallel  
-    f.write("./dsdgen -scale {sf} -f -dir /dbfs{raw_data_path} -FORCE Y -PARALLEL {N} -SCHEMAS Y -VERBOSE Y -CHILD {n} & ".format(
-      raw_data_path=raw_data_path,
+    f.write("./dsdgen -scale {sf} -f -dir {fuse_raw_data_path} -FORCE Y -PARALLEL {N} -SCHEMAS Y -VERBOSE Y -CHILD {n} & ".format(
+      fuse_raw_data_path=fuse_raw_data_path,
       sf=sf,
       n=n,
-      N=N
+      N=N,
       )
     )
     
 dsdgen_out = subprocess.run([script_path, ],stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,)
 
 print("output of dsdgen script:\n{dsdgen_out}".format(dsdgen_out=dsdgen_out))
+
+tables = set()
+
+#create set of table names from data files
+for file in os.listdir(fuse_raw_data_path):
+  if fnmatch.fnmatch(file, "*_[1-9]*_{N}.dat".format(N=str(N))):
+    tables.add(re.search(r'^(\w+)_\d+_\d+', file).group(1))
 
 # COMMAND ----------
 
@@ -122,16 +132,6 @@ for file in dbutils.fs.ls(raw_data_path):
   sum = sum + file.size
   
 print(str(round((sum / 1024 / 1024 / 1024), 3)) + " GB Total Size of Raw Data Files" )
-
-# COMMAND ----------
-
-tables = set()
-fuse_raw_data_path = "/dbfs{raw_data_path}/".format(raw_data_path=raw_data_path)
-
-#create set of table names from data files
-for file in os.listdir(fuse_raw_data_path):
-  if fnmatch.fnmatch(file, '*_[1-9]*_[1-9]*.dat'):
-    tables.add(re.search(r'^(\w+)_\d+_\d+', file).group(1))
 
 # COMMAND ----------
 
@@ -169,7 +169,7 @@ for table_name in schemas:
       .read
       .schema(df_schema)
       .option("delimiter", "|")
-      .csv("{raw_data_path}/{table_name}_[1-9]*_{total_child}.*".format(
+      .csv("{raw_data_path}/{table_name}_[1-9]*_{total_child}.dat".format(
         table_name=table_name,
         raw_data_path=raw_data_path,
         total_child=str(N)
