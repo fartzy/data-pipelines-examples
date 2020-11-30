@@ -6,13 +6,11 @@ dbutils.widgets.text("db_prefix", "tpcds_migrate_sf")
 # COMMAND ----------
 
 import fnmatch
-import glob
 import io
 import json 
 import multiprocessing
 import os
 import re
-import shutil
 import subprocess
 
 from pyspark.sql.types import (
@@ -134,20 +132,6 @@ fuse_raw_data_path = "/dbfs{raw_data_path}/".format(raw_data_path=raw_data_path)
 for file in os.listdir(fuse_raw_data_path):
   if fnmatch.fnmatch(file, '*_[1-9]*_[1-9]*.dat'):
     tables.add(re.search(r'^(\w+)_\d+_\d+', file).group(1))
-
-for table in tables:
-  table_directory = "{fuse_raw_data_path}/{table}".format(fuse_raw_data_path=fuse_raw_data_path, table=table)
-
-  if not os.path.exists(table_directory):
-    print("making " + table_directory)
-    os.makedirs(table_directory)
-    
-  #print("glob for {table}:".format(table=table))
-  
-  for file_path in glob.glob("{fuse_raw_data_path}/{table}_[1-9]*_[1-9]*.dat".format(fuse_raw_data_path=fuse_raw_data_path, table=table)):
-    print("moving " + file_path + " to " + "{fuse_raw_data_path}/{table}/{file}".format(fuse_raw_data_path=fuse_raw_data_path, table=table, file=os.path.basename(file_path)))
-    shutil.move(file_path, "{fuse_raw_data_path}/{table}/{file}".format(fuse_raw_data_path=fuse_raw_data_path, table=table, file=os.path.basename(file_path)))
-    
 
 # COMMAND ----------
 
