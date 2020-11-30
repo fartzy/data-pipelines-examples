@@ -1,14 +1,18 @@
 # Databricks notebook source
-dbutils.widgets.text("delta_path", "/tpcds_populate_automate/delta")
-dbutils.widgets.text("raw_data_path", "/tpcds_populate_automate/data")
-dbutils.widgets.text("scale_factor", "2")
-dbutils.widgets.text("db", "tpcds_migrate_sf1")
+dbutils.widgets.text("path_prefix", "/tpcds_populate_automate")
+dbutils.widgets.text("scale_factor", "100")
+dbutils.widgets.text("db_prefix", "tpcds_migrate_sf")
 
 # COMMAND ----------
 
+import fnmatch
+import glob
 import io
 import json 
+import multiprocessing
 import os
+import re
+import shutil
 import subprocess
 
 from pyspark.sql.types import (
@@ -23,77 +27,127 @@ from pyspark.sql.types import (
 
 # COMMAND ----------
 
+# download code for tpcds-kit and then install
+
+# install dependant packages
 os.chdir("/databricks/driver/")
-apt_get_out = subprocess.run(["sudo", "apt-get", "-y", "install", "gcc", "make", "flex", "bison", "byacc", "git"], 
+get_packages_out = subprocess.run(["sudo", "apt-get", "-y", "install", "gcc", "make", "flex", "bison", "byacc", "git"], 
   stdout=subprocess.PIPE, 
+  stderr=subprocess.STDOUT,
   text=True,)
-git_clone_out = subprocess.run(["git", "clone", "https://github.com/fartzy/tpcds-kit.git",],
+print("\noutput of package download:\n{get_packages_out}".format(get_packages_out=get_packages_out))
+
+# download code from git repo
+download_code_out = subprocess.run(["git", "clone", "https://github.com/fartzy/tpcds-kit.git",],
   stdout=subprocess.PIPE, 
+  stderr=subprocess.STDOUT, 
   text=True,)
+print("\noutput of download code:\n{download_code_out}".format(download_code_out=download_code_out))
+
+# cd to tools dir and execute make
 os.chdir("/databricks/driver/tpcds-kit/tools")
-ls_out = subprocess.run(["make", "OS=LINUX",],
+install_out = subprocess.run(["make", "OS=LINUX",],
   stdout=subprocess.PIPE, 
+  stderr=subprocess.STDOUT,
   text=True,)
+print("\noutput of make:\n{install_out}".format(install_out=install_out))
 
 # COMMAND ----------
 
 #get parameter values
-delta_path = dbutils.widgets.get("delta_path")
-raw_data_path = dbutils.widgets.get("raw_data_path")
-schemas_path = "{raw_data_path}/schemas".format(raw_data_path=raw_data_path)
 sf = dbutils.widgets.get("scale_factor")
-db = dbutils.widgets.get("db")
+db = dbutils.widgets.get("db_prefix") + "_{sf}".format(sf=sf)
 
-#initialize directories and database creation
-dbutils.fs.mkdirs(delta_path)
+raw_data_path = dbutils.widgets.get("path_prefix") + "_{sf}/data".format(sf=sf)
+schemas_path = dbutils.widgets.get("path_prefix") + "_{sf}/data/schemas".format(sf=sf)
+dbfs_script_path = dbutils.widgets.get("path_prefix") + "_{sf}/script".format(sf=sf)
+delta_path = dbutils.widgets.get("path_prefix") + "_{sf}/delta".format(sf=sf)
+
+# print out variables
+print("scale factor: {sf}".format(sf=sf))
+print("database: {db}".format(db=db))
+print("raw data path: {raw_data_path}".format(raw_data_path=raw_data_path))
+print("schemas path: {schemas_path}".format(schemas_path=schemas_path))
+print("dbfs script path: {dbfs_script_path}".format(dbfs_script_path=dbfs_script_path))
+print("delta tables path: {delta_path}".format(delta_path=delta_path))
+
+# create directories and database if needed
 dbutils.fs.mkdirs(raw_data_path)
 dbutils.fs.mkdirs(schemas_path)
+dbutils.fs.mkdirs(dbfs_script_path)
+dbutils.fs.mkdirs(delta_path)
+
 sql("""
   CREATE DATABASE IF NOT EXISTS {db}
-  COMMENT 'This was created for the TPC-DS Auto Generation' 
+  COMMENT 'This was created for TPC-DS data auto generation with scale factor of {sf}' 
   LOCATION '{delta_path}'
-  """.format(db=db, delta_path=delta_path))
+  """.format(db=db, delta_path=delta_path, sf=sf))
 
 # COMMAND ----------
 
+# create fuse script 
+script_path = "/dbfs{dbfs_script_path}/dsdgen.sh".format(dbfs_script_path=dbfs_script_path)
 os.chdir("/databricks/driver/tpcds-kit/tools")
-dsdgen_out = subprocess.run(
-  [
-    "./dsdgen", 
-    "-SCALE", 
-    "{sf}".format(sf=sf),
-    "-DIR", 
-    "/dbfs{raw_data_path}".format(raw_data_path=raw_data_path),
-    "-FORCE", 
-    "Y",
-    "-SCHEMAS", 
-    "Y", 
-    "-VERBOSE", 
-    "Y"
-  ],
-  stdout=subprocess.PIPE, 
-  text=True,)
+
+# use all available processes except for one for overhead 
+N = multiprocessing.cpu_count() - 1
+
+# create a script to execute - one long string would have to use the shell arg set to True
+with open(script_path,"w") as f:
+
+  # small n is child argument - up to N parallel processes
+  for n in range(1, N + 1):
+    
+    # add shell shebang to top of script
+    if n == 1:
+      f.write("#!/bin/sh\n")
+      
+    # execute in background and run in parallel  
+    f.write("./dsdgen -scale {sf} -f -dir /dbfs{raw_data_path} -FORCE Y -PARALLEL {N} -SCHEMAS Y -VERBOSE Y -CHILD {n} & ".format(
+      raw_data_path=raw_data_path,
+      sf=sf,
+      n=n,
+      N=N
+      )
+    )
+    
+dsdgen_out = subprocess.run([script_path, ],stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,)
+
+print("output of dsdgen script:\n{dsdgen_out}".format(dsdgen_out=dsdgen_out))
 
 # COMMAND ----------
 
-def subprocess_cmd(command):
-    process = subprocess.Popen(command,stdout=subprocess.PIPE, shell=True)
-    proc_stdout = process.communicate()[0].strip()
-    print(proc_stdout)
-    return proc_stdout
-
-#subprocess_cmd('cd /databricks/driver/tpcds-kit/tools; make OS=LINUX')
-# subprocess_cmd("cd /databricks/driver/tpcds-kit/tools; ./dsdgen -SCALE {sf} -DIR /dbfs{raw_data_path} -FORCE Y -SCHEMAS Y -VERBOSE Y".format(
-#   sf=sf, raw_data_path=raw_data_path
-# ))
-
-# COMMAND ----------
+# print total data size to screen
 
 sum = 0
 for file in dbutils.fs.ls(raw_data_path):
   sum = sum + file.size
   
 print(str(round((sum / 1024 / 1024 / 1024), 3)) + " GB Total Size of Raw Data Files" )
+
+# COMMAND ----------
+
+tables = set()
+fuse_raw_data_path = "/dbfs{raw_data_path}/".format(raw_data_path=raw_data_path)
+
+#create set of table names from data files
+for file in os.listdir(fuse_raw_data_path):
+  if fnmatch.fnmatch(file, '*_[1-9]*_[1-9]*.dat'):
+    tables.add(re.search(r'^(\w+)_\d+_\d+', file).group(1))
+
+for table in tables:
+  table_directory = "{fuse_raw_data_path}/{table}".format(fuse_raw_data_path=fuse_raw_data_path, table=table)
+
+  if not os.path.exists(table_directory):
+    print("making " + table_directory)
+    os.makedirs(table_directory)
+    
+  #print("glob for {table}:".format(table=table))
+  
+  for file_path in glob.glob("{fuse_raw_data_path}/{table}_[1-9]*_[1-9]*.dat".format(fuse_raw_data_path=fuse_raw_data_path, table=table)):
+    print("moving " + file_path + " to " + "{fuse_raw_data_path}/{table}/{file}".format(fuse_raw_data_path=fuse_raw_data_path, table=table, file=os.path.basename(file_path)))
+    shutil.move(file_path, "{fuse_raw_data_path}/{table}/{file}".format(fuse_raw_data_path=fuse_raw_data_path, table=table, file=os.path.basename(file_path)))
+    
 
 # COMMAND ----------
 
@@ -117,7 +171,8 @@ for table_name in schemas:
         StructField(
           col_name, 
           IntegerType() if type_str == "INT" else ( 
-            StringType() if type_str == "STRING" else ( DateType() if type_str == "DATE" else DecimalType(7,2) ) 
+            StringType() if type_str == "STRING" else ( 
+              DateType() if type_str == "DATE" else DecimalType(7,2) ) 
           )
         )
       )
@@ -130,9 +185,10 @@ for table_name in schemas:
       .read
       .schema(df_schema)
       .option("delimiter", "|")
-      .csv("{raw_data_path}/{table_name}.dat".format(
+      .csv("{raw_data_path}/{table_name}_[1-9]*_{total_child}.*".format(
         table_name=table_name,
-        raw_data_path=raw_data_path 
+        raw_data_path=raw_data_path,
+        total_child=str(N)
       ))
   )
     
