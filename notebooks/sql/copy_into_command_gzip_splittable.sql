@@ -43,7 +43,7 @@ LOCATION 's3://bucket-name-1/data/demo_database.db/encounter_provider'
 COMMENT 'Encounter_Provider Bridge table'
 
 -- COMMAND ----------
-
+--to_date(INCOMING_STRING_DATE, 'MM-dd-yyyy') as OUT_DATE,
 COPY INTO demo_database.encounter_provider
 FROM (
   SELECT 
