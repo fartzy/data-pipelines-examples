@@ -11,7 +11,7 @@
   - Python
   - Scala
   - SQL
-- DAGs (Could be Airlfow or Dataswarm)
+- DAGs (could be Airflow or Dataswarm)
   - Python
 
 
