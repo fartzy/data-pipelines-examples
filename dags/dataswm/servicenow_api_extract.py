@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import datetime
 import logging
 import time
@@ -27,8 +26,7 @@ GlobalDefaults.set(
 )
 """
 2021-02-05
-Reach out to Mike Artz (user=michaelartz) for questions about this pipeline
-*user jonsmith has moved to another team - away from commerce engineering
+Reach out to Mike Artz for questions about this pipeline
 """
 
 
