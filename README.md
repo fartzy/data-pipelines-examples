@@ -7,10 +7,13 @@
 
 ### Miscellaneous organization
 ##### There are only notebooks and DAGs as of now. But DAG and notebook are not necessarily correlated. These could be standalone jobs/pipelines or they could be things that are pieces of larger pipelines.
-- Databricks notebooks
-  - Python
-  - Scala
-  - SQL
+- notebooks
+  - Databricks
+    - Python
+    - Scala
+    - SQL
+  - Zeppelin
+
 - DAGs (could be Airflow or Dataswarm)
   - Python
 
