@@ -64,15 +64,15 @@ class Dummy {
         
         
         bdodaacDF.join(bcmilDF, when(bcmilDF.col("BSERVICE1") === "*", true).otherwise(bcmilDF.col("BSERVICE1") === bdodaacDF.col("BDODAAC").substr(1,1)) &&
-                                when(bcmilDF.col("BSERVICE2") === "*", true).otherwise(bcmilDF.col("BSERVICE2") === bdodaacDF.col("BDODAAC").substr(2,1)) &&
-                                when(bcmilDF.col("BSERVICE3") === "*", true).otherwise(bcmilDF.col("BSERVICE3") === bdodaacDF.col("BDODAAC").substr(3,1)) &&
-                                /*Checking for CUST_GRP3 to be null but might need to check for blank strings*/
-                                when(bcmilDF.col("BFMS_IND") === "*", true).otherwise(bcmilDF.col("BFMS_IND") === when(isnull(bdodaacDF.col("CUST_GRP3")), lit("N")).otherwise(lit("Y"))) && 
-                                bcmilDF.col("BMILGP2FG") === lit("Y"), "left")
-                 .withColumn("BMILGP2FG_RULE_RANK", rank().over(byCUST_GRP3andBDODAACorderedByBCNFMILSP))
-                 .filter($"BMILGP2FG_RULE_RANK" === lit(1))
-                 .withColumnRenamed("BMILGP2RS", "BMILSVC_2")
-                 .select((bdodaacDF.columns :+ "BMILSVC_2").map(c => expr(s"${c}")):_*)
+            when(bcmilDF.col("BSERVICE2") === "*", true).otherwise(bcmilDF.col("BSERVICE2") === bdodaacDF.col("BDODAAC").substr(2,1)) &&
+            when(bcmilDF.col("BSERVICE3") === "*", true).otherwise(bcmilDF.col("BSERVICE3") === bdodaacDF.col("BDODAAC").substr(3,1)) &&
+            /*Checking for CUST_GRP3 to be null but might need to check for blank strings*/
+            when(bcmilDF.col("BFMS_IND") === "*", true).otherwise(bcmilDF.col("BFMS_IND") === when(isnull(bdodaacDF.col("CUST_GRP3")), lit("N")).otherwise(lit("Y"))) && 
+            bcmilDF.col("BMILGP2FG") === lit("Y"), "left")
+            .withColumn("BMILGP2FG_RULE_RANK", rank().over(byCUST_GRP3andBDODAACorderedByBCNFMILSP))
+            .filter($"BMILGP2FG_RULE_RANK" === lit(1))
+            .withColumnRenamed("BMILGP2RS", "BMILSVC_2")
+            .select((bdodaacDF.columns :+ "BMILSVC_2").map(c => expr(s"${c}")):_*)
                  
     }) 
     
