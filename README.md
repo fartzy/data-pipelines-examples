@@ -6,7 +6,9 @@ This project is essentially a collection of different examples of data pipelines
 These are mostly for Apache Spark and specficially Databricks. But there is some Airflow and some GSheet stuff. The titles of the files try to be descriptive but it's usually worth opening them up to check them out to see exatly what they are doing. 
 
 ### Miscellaneous organization
-##### There are only notebooks and DAGs as of now. But DAG and notebook are not necessarily correlated. These could be standalone jobs/pipelines or they could be things that are pieces of larger pipelines.
+
+There are only notebooks and DAGs as of now. Also, DAGs and notebooks are not necessarily correlated. These could be standalone jobs/pipelines - or they could be pieces of larger pipelines.
+
 - notebooks
   - Databricks
     - Python
