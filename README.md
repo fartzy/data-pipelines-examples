@@ -20,5 +20,3 @@ There are only notebooks and DAGs as of now. Also, DAGs and notebooks are not ne
   - Python
 
 
-
-
