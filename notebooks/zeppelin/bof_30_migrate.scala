@@ -177,202 +177,189 @@ class PlaceHolder {
   val getFiscalYYYYMMUDF = udf[String, String](getFiscalYYYYMM)
 }
     
-    /************************************************************bof20 to bof30 functions************************************************************/ 
-    def dateParse2(rawDate: String) = {       
-        
-     try
-        {
-            val formatter = new SimpleDateFormat("yyyyMMdd");
-            val c = new GregorianCalendar();
-            
-            c.setLenient(false);
-            c.set(Integer.parseInt(rawDate.substring(0,4)), Integer.parseInt(rawDate.substring(4,6)), Integer.parseInt(rawDate.substring(6,8)));
-            
-            formatter.setLenient(false)
-            formatter.format(c.getTime())
-            
-        }
-     catch
-        {
-            case e: Throwable => null
-        }
-    
-    } //end dateParse2
-    
-    val dateParseUdf = udf[String, String](dateParse2)
+/************************************************************
+ * bof20 to bof30 functions
+ ************************************************************/
 
-    def julianDateParse(myJulianYDDD: String) = {       
-        
-     try
-        {
-            val sysDate: String =  new SimpleDateFormat("yyyyMMdd").format(Calendar.getInstance().getTime())
-            val sysDateDecade: String = sysDate.substring(0,3)
-            if (sysDateDecade + myJulianYDDD > sysDate) { (Integer.parseInt(sysDateDecade) - 1) + myJulianYDDD }  else sysDateDecade + myJulianYDDD
-            
-        }
-     catch
-        {
-            case e: Throwable => null
-        }
-    
-    } //end julianDateParse
-    val julianDateParseUDF = udf[String, String](julianDateParse)
-   
-   def addDays = udf((rawDate: String, day2Add: Int) => {       
-  
-     try
-        {
-            val formatter = new SimpleDateFormat("yyyyMMdd")
-            val c = new GregorianCalendar()
-            
-            c.setLenient(false)
-            c.set(Integer.parseInt(rawDate.substring(0,4)), Integer.parseInt(rawDate.substring(4,6)), Integer.parseInt(rawDate.substring(6,8)));
-            c.add(Calendar.DATE, day2Add)
-            
-            formatter.format(c.getTime())
-            
-        }
-     catch
-        {
-            case e: Throwable => null
-        }
-    
-    }) 
+def dateParse2(rawDate: String): String = {
+  try {
+    val formatter = new SimpleDateFormat("yyyyMMdd")
+    val calendar = new GregorianCalendar()
 
-    
-    def lagDate: String => String = (inDate: String) => {
-        
-     try
-        {        
-            val zyr = Integer.parseInt(inDate.substring(0,4))
-            val zmth = Integer.parseInt(inDate.substring(4,6))
-            val zday = 1
-            val zmthAdd = zmth + 2
-            val zmthFinal = if (zmthAdd > 12) ("0" + (zmthAdd - 12)).substring(0,2) else ("0" + zmth).substring(0,2)
-            val zyrFinal = if (zmthAdd > 12) zyr + 1 else zyr
-            
-            zyrFinal + zmthFinal + "00"
-        }
-        
-     catch
-        {
-            case e: Throwable => null
-        }        
-    }
-    
-    
-    val lagDateUDF = udf[String, String](lagDate)
-    
-    def getLastDoM: String => String = (rawDate: String) => {
-        
-     try
-        {        
-            val formatter = new SimpleDateFormat("yyyyMMdd");
-            val c = new GregorianCalendar();
-            
-            c.setLenient(false);
-            c.set(Integer.parseInt(rawDate.substring(0,4)), Integer.parseInt(rawDate.substring(4,6)), Integer.parseInt(rawDate.substring(6,8)));
-            c.set(Integer.parseInt(rawDate.substring(0,4)), Integer.parseInt(rawDate.substring(4,6)), c.getActualMaximum(Calendar.DAY_OF_MONTH));
-            
-            formatter.setLenient(false)
-            formatter.format(c.getTime())
-        }
-        
-     catch
-        {
-            case e: Throwable => null
-        }        
-    } //end getLastDoMUdf   
-    
-    
-    val getLastDoMUdf = udf[String, String](getLastDoM)
+    calendar.setLenient(false)
+    calendar.set(
+      Integer.parseInt(rawDate.substring(0, 4)),
+      Integer.parseInt(rawDate.substring(4, 6)),
+      Integer.parseInt(rawDate.substring(6, 8))
+    )
 
+    formatter.setLenient(false)
+    formatter.format(calendar.getTime)
+  } catch {
+    case _: Throwable => null
+  }
+}
 
+val dateParseUdf = udf[String, String](dateParse2)
 
-    
-    def selectActShip(mdDF: DataFrame, bofDF: DataFrame,  byItemCatReasonRejActgiConfDateOrderByBcnfactsp: WindowSpec): Try[DataFrame] = Try ({
-        
-        val myColumns = bofDF.columns :+ "BCNFCHR01"
+def julianDateParse(myJulianYDDD: String): String = {
+  try {
+    val sysDate = new SimpleDateFormat("yyyyMMdd").format(Calendar.getInstance().getTime)
+    val sysDateDecade = sysDate.substring(0, 3)
+    if (sysDateDecade + myJulianYDDD > sysDate)
+      (Integer.parseInt(sysDateDecade) - 1) + myJulianYDDD
+    else
+      sysDateDecade + myJulianYDDD
+  } catch {
+    case _: Throwable => null
+  }
+}
 
-        mdDF.join(bofDF, when(mdDF("ITEM_CATEG") === "*", true).otherwise(mdDF("ITEM_CATEG") === bofDF("ITEM_CATEG")) &&
-            when(mdDF("BACTGIFLG") === "*", true).otherwise(mdDF("BACTGIFLG") === bofDF("ACT_GI_FLAG")) &&
-            when(mdDF("BREAS_REJ") === "*", true).otherwise(mdDF("BREAS_REJ") === bofDF("REASON_REJ_CHK")) &&
-            when(mdDF("BCONFDFLG") === "*", true).otherwise(mdDF("BCONFDFLG") === bofDF("CONF_DATE_FLAG")))
-            .drop(mdDF("ITEM_CATEG"))
-            .withColumn("BCNFACTSP_RULE_RANK", rank().over(byItemCatReasonRejActgiConfDateOrderByBcnfactsp))
-            .filter($"BCNFACTSP_RULE_RANK" === lit(1))
-            .select((myColumns).map(c => expr(s"${c}")):_*)
-                 
-    })      
-    
-  
-    def selectShipQty(mdDF: DataFrame, bofDF: DataFrame,  byBORDTYPEandITEMCATEGCONFDATEFLAGorderedByBCNFSHPQY: WindowSpec): Try[DataFrame] = Try ({
-        val myColumns = bofDF.columns :+ "BCNFCHR01"
-        
-        bofDF.join(mdDF, when(mdDF("ITEM_CATEG") === "*", true).otherwise(mdDF("ITEM_CATEG") === bofDF("ITEM_CATEG")) &&
-            when(mdDF("BORD_TYPE") === "*", true).otherwise(mdDF("BORD_TYPE") === bofDF("BORD_TYPE")) &&
-            when(mdDF("BCONFDFLG") === "*", true).otherwise(bofDF("CONF_DATE_FLAG") === mdDF("BCONFDFLG")))
-            .drop(mdDF("ITEM_CATEG"))
-            .drop(mdDF("BORD_TYPE"))
-            .withColumn("BCNFSHPQY_RULE_RANK", rank().over(byBORDTYPEandITEMCATEGCONFDATEFLAGorderedByBCNFSHPQY))
-            .filter($"BCNFSHPQY_RULE_RANK" === lit(1))
-            .select((myColumns).map(c => expr(s"${c}")):_*)
-                 
-    })     
-    
-    
-    
-    def selectBavailind(bofo20DF: DataFrame): Try[DataFrame] = Try ({
+val julianDateParseUDF = udf[String, String](julianDateParse)
 
+def addDays = udf((rawDate: String, daysToAdd: Int) => {
+  try {
+    val formatter = new SimpleDateFormat("yyyyMMdd")
+    val calendar = new GregorianCalendar()
 
-        val reasonList: List[String] = List("R2","R3","R5","R7","R8") 
-        val reasonList2: List[String] = List("R4","R6","AA","AR","IR")
-        val reasonList3: List[String] = List("CB","Z3","Z5","BN","OA", "ZJ", "ZF", "ZS", "MB", "MC", "FI")
-        val reasonList4: List[String] = List("TAN ","TANN","ZBDF","ZBDP","ZBDQ", "ZBDU", "ZKIT", "ZPRS", "ZRDD", "ZRFC", "ZRTN","ZSA5", "ZSAF", "ZSDD", "ZSPP", "ZTAC")
-        
-        
-        val sysDate = new SimpleDateFormat("yyyyMMdd").format(Calendar.getInstance().getTime())
-    
+    calendar.setLenient(false)
+    calendar.set(
+      Integer.parseInt(rawDate.substring(0, 4)),
+      Integer.parseInt(rawDate.substring(4, 6)) - 1,
+      Integer.parseInt(rawDate.substring(6, 8))
+    )
+    calendar.add(Calendar.DATE, daysToAdd)
 
-        bofo20DF.withColumn("LAG_DATE", lagDateUDF(col("BTGT_SHIP")))
-                .withColumn("ZQUANTITY", when(col("GR_QTY") > lit(0),col("GR_QTY")).otherwise(col("BSHIP_QTY")))
-                .withColumn("BAVAILIND", when(col("DOC_TYPE") === lit("ZTVC") || col("DOC_TYPE") === lit("ZCAT"), 
-                    (when(col("ITEM_CATEG") === lit("ZCAT"), lit("Y"))
-                    .otherwise(when(col("REASON_REJ") isin (reasonList), lit("R"))
-                                .otherwise(when(col("CONF_QTY") === col("BTKILLQTY") && col("REASON_REJ") === lit("AK"), lit("R"))
-                                        .otherwise(when(col("BACT_SHIP") > col("BTGT_SHIP"), lit("N"))
-                                                    .otherwise(when(col("REASON_REJ") isin (reasonList2), lit("N"))
-                                                            .otherwise(when((length(col("BACT_SHIP")) > lit(0)) && (col("BACT_SHIP") <= col("BTGT_SHIP"))
-                                                                                && (col("CONF_QTY") <= col("GR_QTY")), lit("Y"))
-                                                                        .otherwise(when((col("ITEM_CATEG") === lit("ZTVR")) && (lit(sysDate) >= col("BTGT_SHIP"))
-                                                                                && ((length(col("BCREATEDT")) < lit(1))), lit("N"))
-                                                                                .otherwise(when((length(col("BACT_SHIP")) < lit(1)) && (lit(sysDate) <= col("LAG_DATE")), lit("L"))
-                                                                                            .otherwise(when((length(col("BACT_SHIP")) > lit(0)) && (col("BACT_SHIP") <= col("BTGT_SHIP"))                          && (lit(sysDate) <= col("LAG_DATE")) 
-                                                                                                        && (col("CONF_QTY") > col("GR_QTY")), lit("L"))
-                                                                                                        .otherwise(lit("N"))))))))))
-                    )).otherwise(when(col("REASON_REJ") === lit("CB"), lit("N"))
-                                .otherwise(when(length(col("BTGT_SHIP")) < lit(1), " ")
-                                        .otherwise(when(col("ITEM_CATEG") === lit("ZTXT"), " ")
-                                                    .otherwise(when((col("ITEM_CATEG") === lit("ZSTO")) && (col("GR_QTY") <= lit(0)) && (length(col("DOC_DATE")) < 1) 
-                                                            && (lit(sysDate) > col("LAG_DATE")), lit("R"))
-                                                            .otherwise(when((col("REASON_REJ") > lit(" ")) && 
-                                                                            ((lit(sysDate) <= col("LAG_DATE")) || (col("REASON_REJ") isin (reasonList3))), lit("R"))
-                                                                        .otherwise(when(((length(col("BACT_SHIP")) > lit(0)) && (col("BACT_SHIP") <= col("BTGT_SHIP"))) 
-                                                                                    && ((col("CONF_QTY") <= col("ZQUANTITY")) || 
-                                                                                    ((col("LOWR_BND") > lit(0)) && (col("REASON_REJ") isin (reasonList4)))), lit("Y"))
-                                                                                .otherwise(when(col("BACT_SHIP") > col("BTGT_SHIP"), lit("N"))
-                                                                                            .otherwise(when((lit(sysDate) >= col("BTGT_SHIP")) && (length(col("DOC_DATE")) < lit(1))
-                                                                                                        && (length(col("BCREATEDT")) < lit(1)), lit("N"))
-                                                                                                    .otherwise(when((length(col("BACT_SHIP") < lit(1))) 
-                                                                                                                && (lit(sysDate) <= col("LAG_DATE")), lit("L"))
-                                                                                                                .otherwise(when((length(col("BACT_SHIP")) > lit(0)) &&
-                                                                                                                                (col("BACT_SHIP") <= col("BTGT_SHIP")) &&
-                                                                                                                                (lit(sysDate) <= col("LAG_DATE")) && 
-                                                                                                                                (col("CONF_QTY") > col("GR_QTY")), lit("L"))
-                                                                                                                        .otherwise(lit("N")))))))))))))
-            .select((bofo20DF.columns :+ "BAVAILIND").map(c => col(s"${c}")):_*)
+    formatter.format(calendar.getTime)
+  } catch {
+    case _: Throwable => null
+  }
+})
 
-    }) 
+def lagDate: String => String = inDate => {
+  try {
+    val year = Integer.parseInt(inDate.substring(0, 4))
+    val month = Integer.parseInt(inDate.substring(4, 6))
+    val adjustedMonth = month + 2
+    val finalMonth = if (adjustedMonth > 12) f"${adjustedMonth - 12}%02d" else f"$adjustedMonth%02d"
+    val finalYear = if (adjustedMonth > 12) year + 1 else year
+
+    s"$finalYear$finalMonth00"
+  } catch {
+    case _: Throwable => null
+  }
+}
+
+val lagDateUDF = udf[String, String](lagDate)
+
+def getLastDoM: String => String = rawDate => {
+  try {
+    val formatter = new SimpleDateFormat("yyyyMMdd")
+    val calendar = new GregorianCalendar()
+
+    calendar.setLenient(false)
+    calendar.set(
+      Integer.parseInt(rawDate.substring(0, 4)),
+      Integer.parseInt(rawDate.substring(4, 6)) - 1,
+      Integer.parseInt(rawDate.substring(6, 8))
+    )
+    calendar.set(Calendar.DAY_OF_MONTH, calendar.getActualMaximum(Calendar.DAY_OF_MONTH))
+
+    formatter.format(calendar.getTime)
+  } catch {
+    case _: Throwable => null
+  }
+}
+
+val getLastDoMUdf = udf[String, String](getLastDoM)
+
+def selectActShip(
+    mdDF: DataFrame,
+    bofDF: DataFrame,
+    byItemCatReasonRejActgiConfDateOrderByBcnfactsp: WindowSpec
+): Try[DataFrame] = Try {
+  val columns = bofDF.columns :+ "BCNFCHR01"
+
+  mdDF
+    .join(
+      bofDF,
+      when(mdDF("ITEM_CATEG") === "*", true)
+        .otherwise(mdDF("ITEM_CATEG") === bofDF("ITEM_CATEG")) &&
+      when(mdDF("BACTGIFLG") === "*", true)
+        .otherwise(mdDF("BACTGIFLG") === bofDF("ACT_GI_FLAG")) &&
+      when(mdDF("BREAS_REJ") === "*", true)
+        .otherwise(mdDF("BREAS_REJ") === bofDF("REASON_REJ_CHK")) &&
+      when(mdDF("BCONFDFLG") === "*", true)
+        .otherwise(mdDF("BCONFDFLG") === bofDF("CONF_DATE_FLAG"))
+    )
+    .drop(mdDF("ITEM_CATEG"))
+    .withColumn("BCNFACTSP_RULE_RANK", rank().over(byItemCatReasonRejActgiConfDateOrderByBcnfactsp))
+    .filter($"BCNFACTSP_RULE_RANK" === lit(1))
+    .select(columns.map(expr): _*)
+}
+
+def selectShipQty(
+    mdDF: DataFrame,
+    bofDF: DataFrame,
+    byBORDTYPEandITEMCATEGCONFDATEFLAGorderedByBCNFSHPQY: WindowSpec
+): Try[DataFrame] = Try {
+  val columns = bofDF.columns :+ "BCNFCHR01"
+
+  bofDF
+    .join(
+      mdDF,
+      when(mdDF("ITEM_CATEG") === "*", true)
+        .otherwise(mdDF("ITEM_CATEG") === bofDF("ITEM_CATEG")) &&
+      when(mdDF("BORD_TYPE") === "*", true)
+        .otherwise(mdDF("BORD_TYPE") === bofDF("BORD_TYPE")) &&
+      when(mdDF("BCONFDFLG") === "*", true)
+        .otherwise(bofDF("CONF_DATE_FLAG") === mdDF("BCONFDFLG"))
+    )
+    .drop(mdDF("ITEM_CATEG"))
+    .drop(mdDF("BORD_TYPE"))
+    .withColumn("BCNFSHPQY_RULE_RANK", rank().over(byBORDTYPEandITEMCATEGCONFDATEFLAGorderedByBCNFSHPQY))
+    .filter($"BCNFSHPQY_RULE_RANK" === lit(1))
+    .select(columns.map(expr): _*)
+}
+
+def selectBavailind(bofo20DF: DataFrame): Try[DataFrame] = Try {
+  val reasonList1 = List("R2", "R3", "R5", "R7", "R8")
+  val reasonList2 = List("R4", "R6", "AA", "AR", "IR")
+  val reasonList3 = List("CB", "Z3", "Z5", "BN", "OA", "ZJ", "ZF", "ZS", "MB", "MC", "FI")
+  val reasonList4 = List("TAN ", "TANN", "ZBDF", "ZBDP", "ZBDQ", "ZBDU", "ZKIT", "ZPRS", "ZRDD", "ZRFC", "ZRTN", "ZSA5", "ZSAF", "ZSDD", "ZSPP", "ZTAC")
+  val sysDate = new SimpleDateFormat("yyyyMMdd").format(Calendar.getInstance().getTime)
+
+  bofo20DF
+    .withColumn("LAG_DATE", lagDateUDF(col("BTGT_SHIP")))
+    .withColumn("ZQUANTITY", when(col("GR_QTY") > lit(0), col("GR_QTY")).otherwise(col("BSHIP_QTY")))
+    .withColumn(
+      "BAVAILIND",
+      when(col("DOC_TYPE").isin("ZTVC", "ZCAT"), {
+        when(col("ITEM_CATEG") === "ZCAT", lit("Y"))
+          .otherwise(
+            when(col("REASON_REJ").isin(reasonList1), lit("R"))
+              .otherwise(when(col("CONF_QTY") === col("BTKILLQTY") && col("REASON_REJ") === "AK", lit("R"))
+                .otherwise(when(col("BACT_SHIP") > col("BTGT_SHIP"), lit("N"))
+                  .otherwise(when(col("REASON_REJ").isin(reasonList2), lit("N"))
+                    .otherwise(when(length(col("BACT_SHIP")) > lit(0) && col("BACT_SHIP") <= col("BTGT_SHIP") && col("CONF_QTY") <= col("GR_QTY"), lit("Y"))
+                      .otherwise(when(col("ITEM_CATEG") === "ZTVR" && sysDate >= col("BTGT_SHIP") && length(col("BCREATEDT")) < 1, lit("N"))
+                        .otherwise(when(length(col("BACT_SHIP")) < 1 && sysDate <= col("LAG_DATE"), lit("L"))
+                          .otherwise(when(length(col("BACT_SHIP")) > lit(0) && col("BACT_SHIP") <= col("BTGT_SHIP") && sysDate <= col("LAG_DATE") && col("CONF_QTY") > col("GR_QTY"), lit("L"))
+                            .otherwise(lit("N"))))))))))
+      })
+        .otherwise(when(col("REASON_REJ") === "CB", lit("N"))
+          .otherwise(when(length(col("BTGT_SHIP")) < lit(1), " ")
+            .otherwise(when(col("ITEM_CATEG") === "ZTXT", " ")
+              .otherwise(when(col("ITEM_CATEG") === "ZSTO" && col("GR_QTY") <= lit(0) && length(col("DOC_DATE")) < lit(1) && sysDate > col("LAG_DATE"), lit("R"))
+                .otherwise(when(col("REASON_REJ") > lit(" ") && (sysDate <= col("LAG_DATE") || col("REASON_REJ").isin(reasonList3)), lit("R"))
+                  .otherwise(when(length(col("BACT_SHIP")) > lit(0) && col("BACT_SHIP") <= col("BTGT_SHIP") && (col("CONF_QTY") <= col("ZQUANTITY") || (col("LOWR_BND") > lit(0) && col("REASON_REJ").isin(reasonList4))), lit("Y"))
+                    .otherwise(when(col("BACT_SHIP") > col("BTGT_SHIP"), lit("N"))
+                      .otherwise(when(sysDate >= col("BTGT_SHIP") && length(col("DOC_DATE")) < lit(1) && length(col("BCREATEDT")) < lit(1), lit("N"))
+                        .otherwise(when(length(col("BACT_SHIP")) < lit(1) && sysDate <= col("LAG_DATE"), lit("L"))
+                          .otherwise(when(length(col("BACT_SHIP")) > lit(0) && col("BACT_SHIP") <= col("BTGT_SHIP") && sysDate <= col("LAG_DATE") && col("CONF_QTY") > col("GR_QTY"), lit("L"))
+                            .otherwise(lit("N")))))))))))))
+    .select((bofo20DF.columns :+ "BAVAILIND").map(col): _*)
+}
 
 //bofo15
 val bofo15Keys = "DOC_NUMBER,S_ORD_ITEM"
