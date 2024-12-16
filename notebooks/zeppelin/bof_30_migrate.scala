@@ -1,147 +1,181 @@
 import java.lang.Integer
 import java.sql.{Date, Timestamp}
-import java.text.DateFormat
-import java.text.Format
-import java.text.SimpleDateFormat
+import java.text.{DateFormat, SimpleDateFormat}
 import java.time.LocalDate
-import java.util.Calendar   
-import java.util.Date
-import java.util.GregorianCalendar
-import java.util.Locale
-import java.util.Random
+import java.util.{Calendar, GregorianCalendar, Locale, Random}
 import org.apache.spark.sql.catalyst.ScalaReflection
 import org.apache.spark.sql.catalyst.util.DateTimeUtils
-import org.apache.spark.sql.expressions._
+import org.apache.spark.sql.expressions.WindowSpec
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Column, DataFrame, Row, SaveMode}
 import org.apache.hadoop.fs.FileSystem
-import org.joda.time.format._
+import org.joda.time.format.DateTimeFormat
 import scala.collection.JavaConverters._
 import scala.util.Try
 import spark.implicits._
 import sys.process._
 
 class Dummy {
-    def loadSchema(inKeys: String, inAllFieldsInOrder: String): (List[String], List[String]) = {
-        (inKeys.split(",").toList, inAllFieldsInOrder.split(",").toList)
+
+  def loadSchema(inKeys: String, inAllFieldsInOrder: String): (List[String], List[String]) = {
+    (
+      inKeys.split(",").toList,
+      inAllFieldsInOrder.split(",").toList
+    )
+  }
+
+  def schemaMapper: (String, List[String]) => StructField = (fieldName: String, keys: List[String]) => fieldName match {
+    case x if keys.contains(x) => StructField(fieldName, StringType, nullable = false)
+    case _                     => StructField(fieldName, StringType, nullable = false)
+  }
+
+  def joinIngestBofs(oldDF: DataFrame, finalDF: DataFrame, keys: Array[String]): Try[DataFrame] = Try {
+    val joinExprs = keys
+      .map(key => oldDF(key) <=> finalDF(key))
+      .reduce(_ && _)
+
+    oldDF
+      .join(finalDF, joinExprs, "outer")
+      .select(
+        (oldDF.columns ++ finalDF.columns).distinct.map { colName =>
+          if (!oldDF.columns.contains(colName)) finalDF.col(colName)
+          else if (!finalDF.columns.contains(colName)) oldDF.col(colName)
+          else coalesce(finalDF.col(colName), oldDF.col(colName)).as(colName)
+        }: _*
+      )
+  }
+
+  /***********************************************************
+   * Example functions for processing data
+   ***********************************************************/
+
+  def selectBmilsvc1(
+      bdodaacDF: DataFrame,
+      bcmilDF: DataFrame,
+      byCUST_GRP3andBDODAACorderedByBCNFMILSP: WindowSpec
+  ): Try[DataFrame] = Try {
+    bdodaacDF
+      .join(
+        bcmilDF,
+        when(bcmilDF("BSERVICE1") === "*", true)
+          .otherwise(bcmilDF("BSERVICE1") === bdodaacDF("BDODAAC").substr(1, 1)) &&
+          when(bcmilDF("BSERVICE2") === "*", true)
+            .otherwise(bcmilDF("BSERVICE2") === bdodaacDF("BDODAAC").substr(2, 1)) &&
+          when(bcmilDF("BSERVICE3") === "*", true)
+            .otherwise(bcmilDF("BSERVICE3") === bdodaacDF("BDODAAC").substr(3, 1)) &&
+          when(bcmilDF("BFMS_IND") === "*", true)
+            .otherwise(bcmilDF("BFMS_IND") === when(isnull(bdodaacDF("CUST_GRP3")), lit("N")).otherwise(lit("Y"))) &&
+          bcmilDF("BMILGP1FG") === lit("Y"),
+        "left"
+      )
+      .withColumn("BMILGP1FG_RULE_RANK", rank().over(byCUST_GRP3andBDODAACorderedByBCNFMILSP))
+      .filter($"BMILGP1FG_RULE_RANK" === lit(1))
+      .withColumnRenamed("BMILGP1RS", "BMILSVC_1")
+      .select((bdodaacDF.columns :+ "BMILSVC_1").map(expr): _*)
+  }
+
+  def selectBmilsvc2(
+      bdodaacDF: DataFrame,
+      bcmilDF: DataFrame,
+      byCUST_GRP3andBDODAACorderedByBCNFMILSP: WindowSpec
+  ): Try[DataFrame] = Try {
+    bdodaacDF
+      .join(
+        bcmilDF,
+        when(bcmilDF("BSERVICE1") === "*", true)
+          .otherwise(bcmilDF("BSERVICE1") === bdodaacDF("BDODAAC").substr(1, 1)) &&
+          when(bcmilDF("BSERVICE2") === "*", true)
+            .otherwise(bcmilDF("BSERVICE2") === bdodaacDF("BDODAAC").substr(2, 1)) &&
+          when(bcmilDF("BSERVICE3") === "*", true)
+            .otherwise(bcmilDF("BSERVICE3") === bdodaacDF("BDODAAC").substr(3, 1)) &&
+          when(bcmilDF("BFMS_IND") === "*", true)
+            .otherwise(bcmilDF("BFMS_IND") === when(isnull(bdodaacDF("CUST_GRP3")), lit("N")).otherwise(lit("Y"))) &&
+          bcmilDF("BMILGP2FG") === lit("Y"),
+        "left"
+      )
+      .withColumn("BMILGP2FG_RULE_RANK", rank().over(byCUST_GRP3andBDODAACorderedByBCNFMILSP))
+      .filter($"BMILGP2FG_RULE_RANK" === lit(1))
+      .withColumnRenamed("BMILGP2RS", "BMILSVC_2")
+      .select((bdodaacDF.columns :+ "BMILSVC_2").map(expr): _*)
+  }
+
+  def selectBmilsvc3(
+      borgdnumDF: DataFrame,
+      bcmilDF: DataFrame,
+      custDF: DataFrame,
+      byCUST_GRP3andBDODAACandSOLD_TOorderedByBCNFMILSP: WindowSpec
+  ): Try[DataFrame] = Try {
+    val custSubDF = custDF
+      .filter(col("CUSTGRP3") === lit("FMS") && col("OBJVERS") === lit("A"))
+      .select(col("CUSTOMER"))
+      .distinct()
+
+    borgdnumDF
+      .join(custSubDF, custSubDF("CUSTOMER") <=> borgdnumDF("SOLD_TO"), "left")
+      .select(
+        $"*",
+        when($"BORGDNUM".substr(1, 1).isin("B", "D", "K", "P", "T") && !isnull(col("CUSTOMER")), lit(""))
+          .alias("BMILSVC_3_BLANKED")
+      )
+      .join(
+        bcmilDF,
+        when(bcmilDF("BSERVICE1") === "*", true)
+          .otherwise(bcmilDF("BSERVICE1") === borgdnumDF("BORGDNUM").substr(1, 1)) &&
+          when(bcmilDF("BSERVICE2") === "*", true)
+            .otherwise(bcmilDF("BSERVICE2") === borgdnumDF("BORGDNUM").substr(2, 1)) &&
+          when(bcmilDF("BSERVICE3") === "*", true)
+            .otherwise(bcmilDF("BSERVICE3") === borgdnumDF("BORGDNUM").substr(3, 1)) &&
+          when(bcmilDF("BFMS_IND") === "*", true)
+            .otherwise(
+              bcmilDF("BFMS_IND") === lit("Y") && borgdnumDF("CUST_GRP3") === lit("FMS")
+            ) &&
+          bcmilDF("BMILGP3FG") === lit("Y"),
+        "left"
+      )
+      .withColumn("BMILGP3FG_RULE_RANK", rank().over(byCUST_GRP3andBDODAACandSOLD_TOorderedByBCNFMILSP))
+      .filter($"BMILGP3FG_RULE_RANK" === lit(1))
+      .withColumn("BMILSVC_3", coalesce(col("BMILGP3RS"), col("BMILSVC_3_BLANKED")))
+      .select((borgdnumDF.columns :+ "BMILSVC_3").map(expr): _*)
+  }
+
+  def selectBstagrp(
+      mainBof12DF: DataFrame,
+      BCNFSTAGPDF: DataFrame
+  ): Try[DataFrame] = Try {
+    mainBof12DF
+      .join(
+        BCNFSTAGPDF,
+        when(BCNFSTAGPDF("DOC_TYPE") === "*", true)
+          .otherwise(BCNFSTAGPDF("DOC_TYPE") === mainBof12DF("DOC_TYPE")),
+        "left"
+      )
+      .drop(mainBof12DF("DOC_TYPE"))
+      .withColumn("BSTAGRP", BCNFSTAGPDF("BCNFCHR01"))
+      .select((mainBof12DF.columns :+ "BSTAGRP").map(expr): _*)
+  }
+
+  val getFiscalYYYYMM: String => String = (inDate: String) => {
+    try {
+      val sdf = new SimpleDateFormat("yyyyMMdd", Locale.ENGLISH)
+      val date = sdf.parse(inDate)
+      val cal = Calendar.getInstance()
+      cal.setTime(date)
+
+      val month = if (cal.get(Calendar.MONTH) < 9) s"${cal.get(Calendar.MONTH) + 4}" else s"${cal.get(Calendar.MONTH) - 8}"
+      val year = if (cal.get(Calendar.MONTH) >= 9) s"${cal.get(Calendar.YEAR) + 1}" else s"${cal.get(Calendar.YEAR)}"
+
+      val yearString = f"$year%04d"
+      val monthString = f"$month%02d"
+
+      s"$yearString$monthString"
+    } catch {
+      case _: Throwable => null
     }
-  
-    def schemaMapper: (String, List[String]) => StructField = (fieldName: String, keys: List[String]) => fieldName match {
-        case x if keys.contains(x) => StructField(fieldName, StringType, nullable =  false)
-        case _ => StructField(fieldName, StringType, nullable =  false) 
-    }
-        
-    def joinIngestBofs(oldDF: DataFrame, finalDF: DataFrame, keys: Array[String]): Try[DataFrame] = Try({
-            
-        val joinExprs = keys
-            .map{ case (c) => oldDF(c) <=> finalDF(c) }
-            .reduce(_ && _)
-             
-        oldDF.join(finalDF, joinExprs, "outer")
-            .select((oldDF.columns ++ finalDF.columns).distinct.map(c => if (!(oldDF.columns.contains(s"$c"))) { finalDF.col(s"$c") 
-            } else if (!(finalDF.columns.contains(s"$c"))) { oldDF.col(s"$c")
-            } else coalesce(finalDF.col(s"$c"), oldDF.col(s"$c")) as c): _*)
-    })
-    
-    /************************************************************bof12 to bof30 functions************************************************************/
-    def selectBmilsvc1(bdodaacDF: DataFrame, bcmilDF: DataFrame, byCUST_GRP3andBDODAACorderedByBCNFMILSP: WindowSpec): Try[DataFrame] = Try ({
-        
-        bdodaacDF.join(bcmilDF, when(bcmilDF.col("BSERVICE1") === "*", true).otherwise(bcmilDF.col("BSERVICE1") === bdodaacDF.col("BDODAAC").substr(1,1)) &&
-            when(bcmilDF.col("BSERVICE2") === "*", true).otherwise(bcmilDF.col("BSERVICE2") === bdodaacDF.col("BDODAAC").substr(2,1)) &&
-            when(bcmilDF.col("BSERVICE3") === "*", true).otherwise(bcmilDF.col("BSERVICE3") === bdodaacDF.col("BDODAAC").substr(3,1)) &&
-            /*Checking for CUST_GRP3 to be null but might need to check for blank strings*/
-            when(bcmilDF.col("BFMS_IND") === "*", true).otherwise(bcmilDF.col("BFMS_IND") === when(isnull(bdodaacDF.col("CUST_GRP3")), lit("N")).otherwise(lit("Y"))) && 
-            bcmilDF.col("BMILGP1FG") === lit("Y"), "left")
-            .withColumn("BMILGP1FG_RULE_RANK", rank().over(byCUST_GRP3andBDODAACorderedByBCNFMILSP))
-            .filter($"BMILGP1FG_RULE_RANK" === lit(1))
-            .withColumnRenamed("BMILGP1RS", "BMILSVC_1")
-            .select((bdodaacDF.columns :+ "BMILSVC_1").map(c => expr(s"${c}")):_*)
-                 
-    }) 
+  }
 
-    def selectBmilsvc2(bdodaacDF: DataFrame, bcmilDF: DataFrame, byCUST_GRP3andBDODAACorderedByBCNFMILSP: WindowSpec): Try[DataFrame] = Try ({
-        
-        
-        bdodaacDF.join(bcmilDF, when(bcmilDF.col("BSERVICE1") === "*", true).otherwise(bcmilDF.col("BSERVICE1") === bdodaacDF.col("BDODAAC").substr(1,1)) &&
-            when(bcmilDF.col("BSERVICE2") === "*", true).otherwise(bcmilDF.col("BSERVICE2") === bdodaacDF.col("BDODAAC").substr(2,1)) &&
-            when(bcmilDF.col("BSERVICE3") === "*", true).otherwise(bcmilDF.col("BSERVICE3") === bdodaacDF.col("BDODAAC").substr(3,1)) &&
-            /*Checking for CUST_GRP3 to be null but might need to check for blank strings*/
-            when(bcmilDF.col("BFMS_IND") === "*", true).otherwise(bcmilDF.col("BFMS_IND") === when(isnull(bdodaacDF.col("CUST_GRP3")), lit("N")).otherwise(lit("Y"))) && 
-            bcmilDF.col("BMILGP2FG") === lit("Y"), "left")
-            .withColumn("BMILGP2FG_RULE_RANK", rank().over(byCUST_GRP3andBDODAACorderedByBCNFMILSP))
-            .filter($"BMILGP2FG_RULE_RANK" === lit(1))
-            .withColumnRenamed("BMILGP2RS", "BMILSVC_2")
-            .select((bdodaacDF.columns :+ "BMILSVC_2").map(c => expr(s"${c}")):_*)
-                 
-    }) 
-    
-    def selectBmilsvc3(
-        borgdnumDF: DataFrame
-      , bcmilDF: DataFrame
-      , custDF: DataFrame
-      , byCUST_GRP3andBDODAACandSOLD_TOorderedByBCNFMILSP: WindowSpec): Try[DataFrame] = Try ({
-        
-        val custSubDF =  custDF.filter(col("CUSTGRP3") === lit("FMS") && col("OBJVERS") === lit("A"))
-            .select(col("CUSTOMER"))
-            .distinct()
-        
-        borgdnumDF.join(custSubDF, custSubDF.col("CUSTOMER") <=> borgdnumDF.col("SOLD_TO"), "left")
-            .select($"*", when($"BORGDNUM".substr(1,1).isin("B","D", "K", "P", "T") && !(isnull(col("CUSTOMER"))), lit("")).alias("BMILSVC_3_BLANKED"))
-            .join(bcmilDF, when(bcmilDF.col("BSERVICE1") === "*", true).otherwise(bcmilDF.col("BSERVICE1") === borgdnumDF.col("BORGDNUM").substr(1,1)) &&
-            when(bcmilDF.col("BSERVICE2") === "*", true).otherwise(bcmilDF.col("BSERVICE2") === borgdnumDF.col("BORGDNUM").substr(2,1)) &&
-            when(bcmilDF.col("BSERVICE3") === "*", true).otherwise(bcmilDF.col("BSERVICE3") === borgdnumDF.col("BORGDNUM").substr(3,1)) &&
-            /*The FS the condition `ELSE. v_fms_flag = c_star` is handled by when(bcmilDF.col("BFMS_IND") === "*", true*/
-            when(bcmilDF.col("BFMS_IND") === "*", true).otherwise(bcmilDF.col("BFMS_IND") === lit("Y") && borgdnumDF.col("CUST_GRP3") === lit("FMS")) &&
-            bcmilDF.col("BMILGP3FG") === lit("Y"), "left")
-            .withColumn("BMILGP3FG_RULE_RANK", rank().over(byCUST_GRP3andBDODAACandSOLD_TOorderedByBCNFMILSP))
-            .filter($"BMILGP3FG_RULE_RANK" === lit(1))
-            .withColumn("BMILSVC_3", coalesce(col("BMILGP3RS"), col("BMILSVC_3_BLANKED")))
-            .select((borgdnumDF.columns :+ "BMILSVC_3").map(c => expr(s"${c}")):_*)
-                 
-    }) 
-
-
-    def selectBstagrp(mainBof12DF: DataFrame, BCNFSTAGPDF: DataFrame): Try[DataFrame] = Try ({
-        
-        mainBof12DF.join(BCNFSTAGPDF, when(BCNFSTAGPDF.col("DOC_TYPE") === "*", true).otherwise(BCNFSTAGPDF.col("DOC_TYPE") === mainBof12DF.col("DOC_TYPE")), "left")
-            .drop(mainBof12DF.col("DOC_TYPE"))
-            .withColumn("BSTAGRP", (BCNFSTAGPDF.col("BCNFCHR01")))
-            .select((mainBof12DF.columns :+ "BSTAGRP").map(c => expr(s"${c}")):_*)
-                 
-    }) 
-
-
-    def getFiscalYYYYMM: String => String = (inDate: String) => {
-        
-     try
-        {        
-            val sdf: SimpleDateFormat  = new SimpleDateFormat("yyyyMMdd", Locale.ENGLISH);
-            val date: java.util.Date  = sdf.parse(inDate)
-            val cal: java.util.Calendar = sdf.getCalendar();
-     
-            cal.setTime(date)
-            
-            /* The global constant Calendar.MONTH is zero based (January = 0), so add 1 to get 1 based (January should  = 1) and then add 3 for adjustment  */
-            val month = if (cal.get(Calendar.MONTH) < 9) s"${cal.get(Calendar.MONTH) + 4}" else s"${cal.get(Calendar.MONTH) - 8}"
-            val year = if (cal.get(Calendar.MONTH) >= 9) s"${cal.get(Calendar.YEAR) + 1}" else s"${cal.get(Calendar.YEAR)}"
-            
-            val yearStringUnparsed: String = "000" + year.toString()
-            val monthStringUnparsed: String = "0" + month.toString()
-            
-            yearStringUnparsed.substring(yearStringUnparsed.length() - 4) + monthStringUnparsed.substring(monthStringUnparsed.length() - 2)
-        }
-        
-     catch
-        {
-            case e: Throwable => null
-        }        
-    } //end getFiscalYYYYMM
-    
-    
-    val getFiscalYYYYMMUDF = udf[String, String](getFiscalYYYYMM)
-    
-    
+  val getFiscalYYYYMMUDF = udf[String, String](getFiscalYYYYMM)
+}
     
     /************************************************************bof20 to bof30 functions************************************************************/ 
     def dateParse2(rawDate: String) = {       
