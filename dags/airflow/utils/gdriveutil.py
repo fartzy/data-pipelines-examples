@@ -1,14 +1,15 @@
-import numpy as np
-from oauth2client.service_account import ServiceAccountCredentials
-from airflow.hooks.base_hook import BaseHook
 import json
 import io
-import googleapiclient
+import logging
+from datetime import datetime, timezone
+
+import numpy as np
+import pytz
+from oauth2client.service_account import ServiceAccountCredentials
 from googleapiclient.discovery import build
 from httplib2 import Http
-import logging
-import pytz
-from datetime import datetime, timezone
+
+from airflow.hooks.base_hook import BaseHook
 
 GOOGLE_SERVICE_ACCOUNT_CREDENTIALS = BaseHook.get_connection("demo_google_service_account")
 
