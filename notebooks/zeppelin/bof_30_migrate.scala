@@ -16,7 +16,7 @@ import scala.util.Try
 import spark.implicits._
 import sys.process._
 
-class Dummy {
+class PlaceHolder {
 
   def loadSchema(inKeys: String, inAllFieldsInOrder: String): (List[String], List[String]) = {
     (
