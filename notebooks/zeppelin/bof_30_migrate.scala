@@ -979,12 +979,12 @@ val ingestAfterBofo20DF = ingestBeforeBofo20DF
     )
 )
 
-/*.withColumn("BTGTSHIP", col("BTGT_SHIP"))
+.withColumn("BTGTSHIP", col("BTGT_SHIP"))
 .withColumn("BGR_DATE_TEMP", dateParseUdf(col("BGR_DATE"))).drop(col("BGR_DATE")).withColumnRenamed("BGR_DATE_TEMP","BGR_DATE")
 .withColumn("BCREATE_TEMP", dateParseUdf(col("BCREATEDT"))).drop(col("BCREATEDT")).withColumnRenamed("BCREATE_TEMP","BCREATEDT")
 .withColumn("DOC_DATE_TEMP", dateParseUdf(col("DOC_DATE"))).drop(col("DOC_DATE")).withColumnRenamed("DOC_DATE_TEMP","DOC_DATE")
 .withColumn("SCL_DELDAT_TEMP", dateParseUdf(col("DSCL_DELDAT"))).drop(col("SCL_DELDAT")).withColumnRenamed("SCL_DELDAT_TEMP","SCL_DELDAT")
-.select(bof20Bof12Bof15ColsforBof30.head, bof20Bof12Bof15ColsforBof30.tail:_*)*/
+.select(bof20Bof12Bof15ColsforBof30.head, bof20Bof12Bof15ColsforBof30.tail:_*)
                                               
 /** Start BOFO15 **/
 val ingestAfterbofo15DF = bof15DF
