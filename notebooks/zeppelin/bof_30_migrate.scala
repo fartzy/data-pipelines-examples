@@ -854,7 +854,7 @@ val bofo30Schema = StructType(
 )
 
 // Function to create test DataFrame
-def createTestDataFrame: (Int, StructType) => DataFrame = (numOfRows: Int, schema: StructType) => {
+def createTestDataFrame(numOfRows: Int, schema: StructType): DataFrame = {
   spark.createDataFrame(
     (for (_ <- 1 to numOfRows) yield
       Row.fromSeq((for (a <- schema) yield a match {
