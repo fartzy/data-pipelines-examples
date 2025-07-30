@@ -213,6 +213,212 @@ class BofParser {
           )
       )
   }
+
+  // Helper functions for BTGT_SHIP calculation
+  def calculateBtgtShipForItemCategories: Column = {
+    when(
+      col("ITEM_CATEG").isin(rSalesDocItemCat1Line) && 
+      length(col("GV_CREATED_ON")) > lit(0),
+      addDays(col("GV_CREATED_ON"), lit(365))
+    )
+  }
+
+  def calculateBtgtShipForDocType1: Column = {
+    when(
+      col("DOC_TYPE").isin(rSalesDocType1Line) && 
+      length(col("GV_CREATED_ON")) > lit(0),
+      addDays(col("GV_CREATED_ON"), lit(15))
+    )
+  }
+
+  def calculateBtgtShipForDocType2: Column = {
+    when(
+      col("DOC_TYPE").isin(rSalesDocType2Line) && 
+      col("PROFIT_CTR").substr(3, 2) === lit("21") && 
+      length(col("GV_CREATED_ON")) > lit(0),
+      addDays(col("GV_CREATED_ON"), lit(6))
+    )
+    .otherwise(
+      when(
+        col("DOC_TYPE").isin(rSalesDocType2Line) && 
+        length(col("BZZESD")) > lit(0) && 
+        length(col("GV_CREATED_ON")) > lit(0) && 
+        col("BZZESD") >= addDays(col("GV_CREATED_ON"), lit(2)),
+        col("BZZESD")
+      )
+      .otherwise(
+        when(
+          col("DOC_TYPE").isin(rSalesDocType2Line) && 
+          length(col("BZZESD")) > lit(0) && 
+          length(col("GV_CREATED_ON")) > lit(0) && 
+          col("DSDEL_DATE") < addDays(col("GV_CREATED_ON"), lit(2)),
+          addDays(col("GV_CREATED_ON"), lit(2))
+        )
+        .otherwise(
+          when(
+            col("DOC_TYPE").isin(rSalesDocType2Line) && 
+            length(col("DSDEL_DATE")) > lit(0) && 
+            length(col("GV_CREATED_ON")) > lit(0) && 
+            col("DSDEL_DATE") >= addDays(col("GV_CREATED_ON"), lit(2)),
+            col("DSDEL_DATE")
+          )
+          .otherwise(
+            when(
+              col("DOC_TYPE").isin(rSalesDocType2Line) && 
+              length(col("DSDEL_DATE")) > lit(0) && 
+              length(col("GV_CREATED_ON")) > lit(0) && 
+              col("DSDEL_DATE") < addDays(col("GV_CREATED_ON"), lit(2)),
+              addDays(col("GV_CREATED_ON"), lit(2))
+            )
+            .otherwise(
+              when(
+                col("DOC_TYPE").isin(rSalesDocType2Line) && 
+                length(col("GV_CREATED_ON")) > lit(0),
+                addDays(col("GV_CREATED_ON"), lit(15))
+              )
+            )
+          )
+        )
+      )
+    )
+  }
+
+  def calculateBtgtShipForFmsLogic: Column = {
+    when(
+      col("CUST_GRP3") === lit("FMS") && 
+      col("BFMS_PRG").isin(rFmsProgCdLine) && 
+      col("BADMLDTME") > lit(0) && 
+      col("BPRODLDTM") > lit(0) && 
+      length(col("BPRODLDTM")) > lit(0),
+      date_format(
+        date_add(
+          from_unixtime(
+            unix_timestamp(col("GV_CREATED_ON"), "yyyyMMdd"),
+            "yyyy-MM-dd"
+          ),
+          col("BADMLDTME") + col("BPRODLDTM")
+        ),
+        "yyyyMMdd"
+      )
+    )
+    .otherwise(
+      when(
+        col("PROFIT_CTR") >= col("BLOPRCTR") && 
+        col("PROFIT_CTR") <= col("BHIPRCTR") && 
+        col("BFMS_PRG").isin(rFmsProgCdLine) && 
+        col("CUST_GRP3") === lit("FMS"),
+        date_format(
+          date_add(
+            from_unixtime(
+              unix_timestamp(col("GV_CREATED_ON"), "yyyyMMdd"),
+              "yyyy-MM-dd"
+            ),
+            col("BMM_PLT")
+          ),
+          "yyyyMMdd"
+        )
+      )
+      .otherwise(
+        when(
+          col("BFMS_PRG").isin(rFmsProgCdLine) && 
+          col("CUST_GRP3") === lit("FMS"),
+          addDays(col("GV_CREATED_ON"), lit(180))
+        )
+      )
+    )
+  }
+
+  def calculateBtgtShipForSpecialCases: Column = {
+    when(
+      col("BOFBNSRDD").substr(2, 2).isin(isNddExtendedList) && 
+      col("BOFBNSRDD").substr(1, 1) === lit("S"),
+      getLastDoMUdf(col("BOFBNSRDD"))
+    )
+    .otherwise(
+      when(
+        col("BORD_TYPE") === lit("C") && 
+        col("BACQADVCD").isin(rAac1Line) && 
+        col("BOFPRICD").isin(rHighPriorityLine),
+        addDays(col("GV_CREATED_ON"), lit(3))
+      )
+      .otherwise(
+        when(
+          ((col("BORD_TYPE") === lit("C") && 
+            col("BACQADVCD").isin(rAac1Line) && 
+            col("BOFBNSRDD").substr(1, 1).isin(rExpNsRdd2Line)) || 
+           col("BOFBNSRDD").isin(rExpNsRdd1Line)) && 
+          col("BOFPRICD").isin(rLowPriorityLine),
+          addDays(col("GV_CREATED_ON"), lit(3))
+        )
+        .otherwise(
+          when(
+            ((col("BORD_TYPE") === lit("C") && 
+              col("BACQADVCD").isin(rAac1Line) && 
+              !col("BOFBNSRDD").substr(1, 1).isin(rExpNsRdd2Line)) && 
+             !col("BOFBNSRDD").isin(rExpNsRdd1Line)) && 
+            col("BOFPRICD").isin(rLowPriorityLine),
+            addDays(col("GV_CREATED_ON"), lit(5))
+          )
+          .otherwise(
+            when(
+              col("BORD_TYPE") === lit("C") && 
+              col("BACQADVCD").isin(rAac2Line) && 
+              col("BADMLDTME") > lit(0) && 
+              col("BPRODLDTM") > lit(0),
+              date_format(
+                date_add(
+                  from_unixtime(
+                    unix_timestamp(col("GV_CREATED_ON"), "yyyyMMdd"),
+                    "yyyy-MM-dd"
+                  ),
+                  col("BADMLDTME") + col("BPRODLDTM")
+                ),
+                "yyyyMMdd"
+              )
+            )
+            .otherwise(lit(""))
+          )
+        )
+      )
+    )
+  }
+
+  def calculateBtgtShip: Column = {
+    when(col("BOFITMCAT").isin(matlItemCatGrpList1), lit(""))
+      .otherwise(
+        calculateBtgtShipForItemCategories
+          .otherwise(
+            calculateBtgtShipForDocType1
+              .otherwise(
+                calculateBtgtShipForDocType2
+                  .otherwise(
+                    when(col("DOC_TYPE").isin(rSalesDocType3Line), col("DSDEL_DATE"))
+                      .otherwise(
+                        when(
+                          col("DOC_TYPE").isin(rSalesDocType4Line) && 
+                          length(col("DSDEL_DATE")) > lit(0),
+                          addDays(col("DSDEL_DATE"), lit(5))
+                        )
+                        .otherwise(
+                          when(
+                            col("DOC_TYPE").isin(rSalesDocType5Line) && 
+                            col("ITEM_CATEG").isin(rSalesDocItemCat2Line) && 
+                            length(col("GV_CREATED_ON")) > lit(0),
+                            addDays(col("GV_CREATED_ON"), lit(197))
+                          )
+                          .otherwise(
+                            calculateBtgtShipForFmsLogic
+                              .otherwise(
+                                calculateBtgtShipForSpecialCases
+                              )
+                          )
+                        )
+                      )
+                  )
+              )
+          )
+      )
+  }
 }
 
 /************************************************************
@@ -899,213 +1105,7 @@ val ingestAfterBofo20DF = ingestBeforeBofo20DF
     "GV_CREATED_ON",
     when(col("bcnfstagpDF.DOC_TYPE").isNull, col("BORDER_DT")).otherwise(col("CREATEDON"))
   )
-.withColumn(
-  "BTGT_SHIP",
-  when(col("BOFITMCAT").isin(matlItemCatGrpList1), lit(""))
-    .otherwise(
-      when(
-        (col("ITEM_CATEG").isin(rSalesDocItemCat1Line)) &&
-          (length(col("GV_CREATED_ON")) > lit(0)),
-        addDays(col("GV_CREATED_ON"), lit(365))
-      )
-        .otherwise(
-          when(
-            (col("DOC_TYPE").isin(rSalesDocType1Line)) &&
-              (length(col("GV_CREATED_ON")) > lit(0)),
-            addDays(col("GV_CREATED_ON"), lit(15))
-          )
-            .otherwise(
-              when(
-                (col("DOC_TYPE").isin(rSalesDocType2Line)) &&
-                  (col("PROFIT_CTR").substr(3, 2) === lit("21")) &&
-                  (length(col("GV_CREATED_ON")) > lit(0)),
-                addDays(col("GV_CREATED_ON"), lit(6))
-              )
-                .otherwise(
-                  when(
-                    (col("DOC_TYPE").isin(rSalesDocType2Line)) &&
-                      (length(col("BZZESD")) > lit(0)) &&
-                      (length(col("GV_CREATED_ON")) > lit(0)) &&
-                      (col("BZZESD") >= addDays(col("GV_CREATED_ON"), lit(2))),
-                    col("BZZESD")
-                  )
-                    .otherwise(
-                      when(
-                        (col("DOC_TYPE").isin(rSalesDocType2Line)) &&
-                          (length(col("BZZESD")) > lit(0)) &&
-                          (length(col("GV_CREATED_ON")) > lit(0)) &&
-                          (col("DSDEL_DATE") < addDays(col("GV_CREATED_ON"), lit(2))),
-                        addDays(col("GV_CREATED_ON"), lit(2))
-                      )
-                        .otherwise(
-                          when(
-                            (col("DOC_TYPE").isin(rSalesDocType2Line)) &&
-                              (length(col("DSDEL_DATE")) > lit(0)) &&
-                              (length(col("GV_CREATED_ON")) > lit(0)) &&
-                              (col("DSDEL_DATE") >= addDays(col("GV_CREATED_ON"), lit(2))),
-                            col("DSDEL_DATE")
-                          )
-                            .otherwise(
-                              when(
-                                (col("DOC_TYPE").isin(rSalesDocType2Line)) &&
-                                  (length(col("DSDEL_DATE")) > lit(0)) &&
-                                  (length(col("GV_CREATED_ON")) > lit(0)) &&
-                                  (col("DSDEL_DATE") < addDays(col("GV_CREATED_ON"), lit(2))),
-                                addDays(col("GV_CREATED_ON"), lit(2))
-                              )
-                                .otherwise(
-                                  when(
-                                    (col("DOC_TYPE").isin(rSalesDocType2Line)) &&
-                                      (length(col("GV_CREATED_ON")) > lit(0)),
-                                    addDays(col("GV_CREATED_ON"), lit(15))
-                                  )
-                                    .otherwise(
-                                      when(
-                                        (col("DOC_TYPE").isin(rSalesDocType3Line)),
-                                        col("DSDEL_DATE")
-                                      )
-                                        .otherwise(
-                                          when(
-                                            (col("DOC_TYPE").isin(rSalesDocType4Line)) &&
-                                              (length(col("DSDEL_DATE")) > lit(0)),
-                                            addDays(col("DSDEL_DATE"), lit(5))
-                                          )
-                                            .otherwise(
-                                              when(
-                                                (col("DOC_TYPE").isin(rSalesDocType5Line)) &&
-                                                  (col("ITEM_CATEG").isin(rSalesDocItemCat2Line)) &&
-                                                  (length(col("GV_CREATED_ON")) > lit(0)),
-                                                addDays(col("GV_CREATED_ON"), lit(197))
-                                              )
-                                                .otherwise(
-                                                  when(
-                                                    (col("CUST_GRP3") === lit("FMS")) &&
-                                                      (col("BFMS_PRG").isin(rFmsProgCdLine)) &&
-                                                      (col("BADMLDTME") > lit(0)) &&
-                                                      (col("BPRODLDTM") > lit(0)) &&
-                                                      (length(col("BPRODLDTM")) > lit(0)),
-                                                    date_format(
-                                                      date_add(
-                                                        from_unixtime(
-                                                          unix_timestamp(
-                                                            col("GV_CREATED_ON"),
-                                                            "yyyyMMdd"
-                                                          ),
-                                                          "yyyy-MM-dd"
-                                                        ),
-                                                        col("BADMLDTME") + col("BPRODLDTM")
-                                                      ),
-                                                      "yyyyMMdd"
-                                                    )
-                                                  )
-                                                    .otherwise(
-                                                      when(
-                                                        (col("PROFIT_CTR") >= col("BLOPRCTR")) &&
-                                                          (col("PROFIT_CTR") <= col("BHIPRCTR")) &&
-                                                          (col("BFMS_PRG").isin(rFmsProgCdLine)) &&
-                                                          (col("CUST_GRP3") === lit("FMS")),
-                                                        date_format(
-                                                          date_add(
-                                                            from_unixtime(
-                                                              unix_timestamp(
-                                                                col("GV_CREATED_ON"),
-                                                                "yyyyMMdd"
-                                                              ),
-                                                              "yyyy-MM-dd"
-                                                            ),
-                                                            col("BMM_PLT")
-                                                          ),
-                                                          "yyyyMMdd"
-                                                        )
-                                                      )
-                                                        .otherwise(
-                                                          when(
-                                                            (col("BFMS_PRG").isin(rFmsProgCdLine)) &&
-                                                              (col("CUST_GRP3") === lit("FMS")),
-                                                            addDays(col("GV_CREATED_ON"), lit(180))
-                                                          )
-                                                            .otherwise(
-                                                              when(
-                                                                col("BOFBNSRDD")
-                                                                  .substr(2, 2)
-                                                                  .isin(isNddExtendedList) &&
-                                                                  (col("BOFBNSRDD").substr(1, 1) === lit("S")),
-                                                                getLastDoMUdf(col("BOFBNSRDD"))
-                                                              )
-                                                                .otherwise(
-                                                                  when(
-                                                                    (col("BORD_TYPE") === lit("C")) &&
-                                                                      (col("BACQADVCD").isin(rAac1Line)) &&
-                                                                      (col("BOFPRICD").isin(rHighPriorityLine)),
-                                                                    addDays(col("GV_CREATED_ON"), lit(3))
-                                                                  )
-                                                                    .otherwise(
-                                                                      when(
-                                                                        ((col("BORD_TYPE") === lit("C")) &&
-                                                                          (col("BACQADVCD").isin(rAac1Line)) &&
-                                                                          (col("BOFBNSRDD").substr(1, 1).isin(rExpNsRdd2Line)) ||
-                                                                          (col("BOFBNSRDD").isin(rExpNsRdd1Line))) &&
-                                                                          (col("BOFPRICD").isin(rLowPriorityLine)),
-                                                                        addDays(col("GV_CREATED_ON"), lit(3))
-                                                                      )
-                                                                        .otherwise(
-                                                                          when(
-                                                                            ((col("BORD_TYPE") === lit("C")) &&
-                                                                              (col("BACQADVCD").isin(rAac1Line)) &&
-                                                                              (!(col("BOFBNSRDD").substr(1, 1).isin(rExpNsRdd2Line))) &&
-                                                                              (!(col("BOFBNSRDD").isin(rExpNsRdd1Line)))) &&
-                                                                              (col("BOFPRICD").isin(rLowPriorityLine)),
-                                                                            addDays(col("GV_CREATED_ON"), lit(5))
-                                                                          )
-                                                                            .otherwise(
-                                                                              when(
-                                                                                ((col("BORD_TYPE") === lit("C")) &&
-                                                                                  (col("BACQADVCD").isin(rAac2Line)) &&
-                                                                                  (col("BADMLDTME") > lit(0)) &&
-                                                                                  (col("BPRODLDTM") > lit(0))),
-                                                                                date_format(
-                                                                                  date_add(
-                                                                                    from_unixtime(
-                                                                                      unix_timestamp(
-                                                                                        col("GV_CREATED_ON"),
-                                                                                        "yyyyMMdd"
-                                                                                      ),
-                                                                                      "yyyy-MM-dd"
-                                                                                    ),
-                                                                                    col("BADMLDTME") + col("BPRODLDTM")
-                                                                                  ),
-                                                                                  "yyyyMMdd"
-                                                                                )
-                                                                              )
-                                                                                .otherwise(
-                                                                                  when(
-                                                                                    ((col("BORD_TYPE") === lit("C")) &&
-                                                                                      (col("BACQADVCD").isin(rAac2Line)) &&
-                                                                                      ((col("BADMLDTME") <= lit(0)) ||
-                                                                                        (col("BPRODLDTM") <= lit(0)))),
-                                                                                    addDays(col("GV_CREATED_ON"), lit(180))
-                                                                                  )
-                                                                                )
-                                                                            )
-                                                                        )
-                                                                    )
-                                                                )
-                                                            )
-                                                        )
-                                                    )
-                                                )
-                                            )
-                                        )
-                                    )
-                                )
-                            )
-                        )
-                    )
-                )
-            )
-        )
-    )
-)
+.withColumn("BTGT_SHIP", new BofParser().calculateBtgtShip)
 
 .withColumn("BTGTSHIP", col("BTGT_SHIP"))
 .withColumn("BGR_DATE_TEMP", dateParseUdf(col("BGR_DATE"))).drop(col("BGR_DATE")).withColumnRenamed("BGR_DATE_TEMP","BGR_DATE")
