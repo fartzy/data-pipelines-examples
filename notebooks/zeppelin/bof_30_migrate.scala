@@ -3,16 +3,20 @@ import java.sql.{Date, Timestamp}
 import java.text.{DateFormat, SimpleDateFormat}
 import java.time.LocalDate
 import java.util.{Calendar, GregorianCalendar, Locale, Random}
+
+import scala.collection.JavaConverters._
+import scala.util.Try
+
+import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.sql.catalyst.ScalaReflection
 import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.sql.expressions.WindowSpec
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Column, DataFrame, Row, SaveMode}
-import org.apache.hadoop.fs.FileSystem
+
 import org.joda.time.format.DateTimeFormat
-import scala.collection.JavaConverters._
-import scala.util.Try
+
 import spark.implicits._
 import sys.process._
 
@@ -25,10 +29,11 @@ class BofParser {
     )
   }
 
-  def schemaMapper: (String, List[String]) => StructField = (fieldName: String, keys: List[String]) => fieldName match {
-    case x if keys.contains(x) => StructField(fieldName, StringType, nullable = false)
-    case _                     => StructField(fieldName, StringType, nullable = false)
-  }
+  def schemaMapper: (String, List[String]) => StructField = (fieldName: String, keys: List[String]) =>
+    fieldName match {
+      case x if keys.contains(x) => StructField(fieldName, StringType, nullable = false)
+      case _                     => StructField(fieldName, StringType, nullable = false)
+    }
 
   def joinIngestBofs(oldDF: DataFrame, finalDF: DataFrame, keys: Array[String]): Try[DataFrame] = Try {
     val joinExprs = keys
@@ -60,13 +65,15 @@ class BofParser {
         bcmilDF,
         when(bcmilDF("BSERVICE1") === "*", true)
           .otherwise(bcmilDF("BSERVICE1") === bdodaacDF("BDODAAC").substr(1, 1)) &&
-          when(bcmilDF("BSERVICE2") === "*", true)
-            .otherwise(bcmilDF("BSERVICE2") === bdodaacDF("BDODAAC").substr(2, 1)) &&
-          when(bcmilDF("BSERVICE3") === "*", true)
-            .otherwise(bcmilDF("BSERVICE3") === bdodaacDF("BDODAAC").substr(3, 1)) &&
-          when(bcmilDF("BFMS_IND") === "*", true)
-            .otherwise(bcmilDF("BFMS_IND") === when(isnull(bdodaacDF("CUST_GRP3")), lit("N")).otherwise(lit("Y"))) &&
-          bcmilDF("BMILGP1FG") === lit("Y"),
+        when(bcmilDF("BSERVICE2") === "*", true)
+          .otherwise(bcmilDF("BSERVICE2") === bdodaacDF("BDODAAC").substr(2, 1)) &&
+        when(bcmilDF("BSERVICE3") === "*", true)
+          .otherwise(bcmilDF("BSERVICE3") === bdodaacDF("BDODAAC").substr(3, 1)) &&
+        when(bcmilDF("BFMS_IND") === "*", true)
+          .otherwise(
+            bcmilDF("BFMS_IND") === when(isnull(bdodaacDF("CUST_GRP3")), lit("N")).otherwise(lit("Y"))
+          ) &&
+        bcmilDF("BMILGP1FG") === lit("Y"),
         "left"
       )
       .withColumn("BMILGP1FG_RULE_RANK", rank().over(byCUST_GRP3andBDODAACorderedByBCNFMILSP))
@@ -85,13 +92,15 @@ class BofParser {
         bcmilDF,
         when(bcmilDF("BSERVICE1") === "*", true)
           .otherwise(bcmilDF("BSERVICE1") === bdodaacDF("BDODAAC").substr(1, 1)) &&
-          when(bcmilDF("BSERVICE2") === "*", true)
-            .otherwise(bcmilDF("BSERVICE2") === bdodaacDF("BDODAAC").substr(2, 1)) &&
-          when(bcmilDF("BSERVICE3") === "*", true)
-            .otherwise(bcmilDF("BSERVICE3") === bdodaacDF("BDODAAC").substr(3, 1)) &&
-          when(bcmilDF("BFMS_IND") === "*", true)
-            .otherwise(bcmilDF("BFMS_IND") === when(isnull(bdodaacDF("CUST_GRP3")), lit("N")).otherwise(lit("Y"))) &&
-          bcmilDF("BMILGP2FG") === lit("Y"),
+        when(bcmilDF("BSERVICE2") === "*", true)
+          .otherwise(bcmilDF("BSERVICE2") === bdodaacDF("BDODAAC").substr(2, 1)) &&
+        when(bcmilDF("BSERVICE3") === "*", true)
+          .otherwise(bcmilDF("BSERVICE3") === bdodaacDF("BDODAAC").substr(3, 1)) &&
+        when(bcmilDF("BFMS_IND") === "*", true)
+          .otherwise(
+            bcmilDF("BFMS_IND") === when(isnull(bdodaacDF("CUST_GRP3")), lit("N")).otherwise(lit("Y"))
+          ) &&
+        bcmilDF("BMILGP2FG") === lit("Y"),
         "left"
       )
       .withColumn("BMILGP2FG_RULE_RANK", rank().over(byCUST_GRP3andBDODAACorderedByBCNFMILSP))
@@ -122,18 +131,21 @@ class BofParser {
         bcmilDF,
         when(bcmilDF("BSERVICE1") === "*", true)
           .otherwise(bcmilDF("BSERVICE1") === borgdnumDF("BORGDNUM").substr(1, 1)) &&
-          when(bcmilDF("BSERVICE2") === "*", true)
-            .otherwise(bcmilDF("BSERVICE2") === borgdnumDF("BORGDNUM").substr(2, 1)) &&
-          when(bcmilDF("BSERVICE3") === "*", true)
-            .otherwise(bcmilDF("BSERVICE3") === borgdnumDF("BORGDNUM").substr(3, 1)) &&
-          when(bcmilDF("BFMS_IND") === "*", true)
-            .otherwise(
-              bcmilDF("BFMS_IND") === lit("Y") && borgdnumDF("CUST_GRP3") === lit("FMS")
-            ) &&
-          bcmilDF("BMILGP3FG") === lit("Y"),
+        when(bcmilDF("BSERVICE2") === "*", true)
+          .otherwise(bcmilDF("BSERVICE2") === borgdnumDF("BORGDNUM").substr(2, 1)) &&
+        when(bcmilDF("BSERVICE3") === "*", true)
+          .otherwise(bcmilDF("BSERVICE3") === borgdnumDF("BORGDNUM").substr(3, 1)) &&
+        when(bcmilDF("BFMS_IND") === "*", true)
+          .otherwise(
+            bcmilDF("BFMS_IND") === lit("Y") && borgdnumDF("CUST_GRP3") === lit("FMS")
+          ) &&
+        bcmilDF("BMILGP3FG") === lit("Y"),
         "left"
       )
-      .withColumn("BMILGP3FG_RULE_RANK", rank().over(byCUST_GRP3andBDODAACandSOLD_TOorderedByBCNFMILSP))
+      .withColumn(
+        "BMILGP3FG_RULE_RANK",
+        rank().over(byCUST_GRP3andBDODAACandSOLD_TOorderedByBCNFMILSP)
+      )
       .filter($"BMILGP3FG_RULE_RANK" === lit(1))
       .withColumn("BMILSVC_3", coalesce(col("BMILGP3RS"), col("BMILSVC_3_BLANKED")))
       .select((borgdnumDF.columns :+ "BMILSVC_3").map(expr): _*)
@@ -175,8 +187,34 @@ class BofParser {
   }
 
   val getFiscalYYYYMMUDF = udf[String, String](getFiscalYYYYMM)
+
+  def calculateBactShip: Column = {
+    when(col("BCNFCHR01") === lit("L"), col("LOAD_DATE"))
+      .otherwise(
+        when(col("BCNFCHR01") === lit("G"), col("BGR_DATE"))
+          .otherwise(
+            when(col("BCNFCHR01") === lit("C"), col("CONF_DATE"))
+              .otherwise(
+                when(col("BCNFCHR01") === lit("P"), col("BCUSTPODT"))
+                  .otherwise(
+                    when(col("BCNFCHR01") === lit("M"), col("BMATRCVDT"))
+                      .otherwise(
+                        when(
+                          col("BCNFCHR01") === lit("O") && length(col("BCNFCHR01")) < lit(1),
+                          julianDateParseUDF(col("BMATRCVDT").substr(14, 4))
+                        )
+                        .otherwise(
+                          when(col("BCNFCHR01") === lit("B"), lit(""))
+                            .otherwise(lit(""))
+                        )
+                      )
+                  )
+              )
+          )
+      )
+  }
 }
-    
+
 /************************************************************
  * bof20 to bof30 functions
  ************************************************************/
@@ -241,7 +279,9 @@ def lagDate: String => String = inDate => {
     val year = Integer.parseInt(inDate.substring(0, 4))
     val month = Integer.parseInt(inDate.substring(4, 6))
     val adjustedMonth = month + 2
-    val finalMonth = if (adjustedMonth > 12) f"${adjustedMonth - 12}%02d" else f"$adjustedMonth%02d"
+    val finalMonth = 
+      if (adjustedMonth > 12) f"${adjustedMonth - 12}%02d" 
+      else f"$adjustedMonth%02d"
     val finalYear = if (adjustedMonth > 12) year + 1 else year
 
     s"$finalYear$finalMonth00"
@@ -263,7 +303,10 @@ def getLastDoM: String => String = rawDate => {
       Integer.parseInt(rawDate.substring(4, 6)) - 1,
       Integer.parseInt(rawDate.substring(6, 8))
     )
-    calendar.set(Calendar.DAY_OF_MONTH, calendar.getActualMaximum(Calendar.DAY_OF_MONTH))
+    calendar.set(
+      Calendar.DAY_OF_MONTH, 
+      calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
+    )
 
     formatter.format(calendar.getTime)
   } catch {
@@ -285,15 +328,18 @@ def selectActShip(
       bofDF,
       when(mdDF("ITEM_CATEG") === "*", true)
         .otherwise(mdDF("ITEM_CATEG") === bofDF("ITEM_CATEG")) &&
-      when(mdDF("BACTGIFLG") === "*", true)
+        when(mdDF("BACTGIFLG") === "*", true)
         .otherwise(mdDF("BACTGIFLG") === bofDF("ACT_GI_FLAG")) &&
-      when(mdDF("BREAS_REJ") === "*", true)
+        when(mdDF("BREAS_REJ") === "*", true)
         .otherwise(mdDF("BREAS_REJ") === bofDF("REASON_REJ_CHK")) &&
-      when(mdDF("BCONFDFLG") === "*", true)
+        when(mdDF("BCONFDFLG") === "*", true)
         .otherwise(mdDF("BCONFDFLG") === bofDF("CONF_DATE_FLAG"))
     )
     .drop(mdDF("ITEM_CATEG"))
-    .withColumn("BCNFACTSP_RULE_RANK", rank().over(byItemCatReasonRejActgiConfDateOrderByBcnfactsp))
+    .withColumn(
+      "BCNFACTSP_RULE_RANK", 
+      rank().over(byItemCatReasonRejActgiConfDateOrderByBcnfactsp)
+    )
     .filter($"BCNFACTSP_RULE_RANK" === lit(1))
     .select(columns.map(expr): _*)
 }
@@ -310,14 +356,17 @@ def selectShipQty(
       mdDF,
       when(mdDF("ITEM_CATEG") === "*", true)
         .otherwise(mdDF("ITEM_CATEG") === bofDF("ITEM_CATEG")) &&
-      when(mdDF("BORD_TYPE") === "*", true)
+        when(mdDF("BORD_TYPE") === "*", true)
         .otherwise(mdDF("BORD_TYPE") === bofDF("BORD_TYPE")) &&
-      when(mdDF("BCONFDFLG") === "*", true)
+        when(mdDF("BCONFDFLG") === "*", true)
         .otherwise(bofDF("CONF_DATE_FLAG") === mdDF("BCONFDFLG"))
     )
     .drop(mdDF("ITEM_CATEG"))
     .drop(mdDF("BORD_TYPE"))
-    .withColumn("BCNFSHPQY_RULE_RANK", rank().over(byBORDTYPEandITEMCATEGCONFDATEFLAGorderedByBCNFSHPQY))
+    .withColumn(
+      "BCNFSHPQY_RULE_RANK", 
+      rank().over(byBORDTYPEandITEMCATEGCONFDATEFLAGorderedByBCNFSHPQY)
+    )
     .filter($"BCNFSHPQY_RULE_RANK" === lit(1))
     .select(columns.map(expr): _*)
 }
@@ -326,45 +375,148 @@ def selectBavailind(bofo20DF: DataFrame): Try[DataFrame] = Try {
   val reasonList1 = List("R2", "R3", "R5", "R7", "R8")
   val reasonList2 = List("R4", "R6", "AA", "AR", "IR")
   val reasonList3 = List("CB", "Z3", "Z5", "BN", "OA", "ZJ", "ZF", "ZS", "MB", "MC", "FI")
-  val reasonList4 = List("TAN ", "TANN", "ZBDF", "ZBDP", "ZBDQ", "ZBDU", "ZKIT", "ZPRS", "ZRDD", "ZRFC", "ZRTN", "ZSA5", "ZSAF", "ZSDD", "ZSPP", "ZTAC")
+  val reasonList4 = List(
+    "TAN ", "TANN", "ZBDF", "ZBDP", "ZBDQ", "ZBDU", "ZKIT", "ZPRS", 
+    "ZRDD", "ZRFC", "ZRTN", "ZSA5", "ZSAF", "ZSDD", "ZSPP", "ZTAC"
+  )
   val sysDate = new SimpleDateFormat("yyyyMMdd").format(Calendar.getInstance().getTime)
+
+  // Helper function for ZTVC/ZCAT document type logic
+  def ztvcZcatLogic(reasonList1: List[String], reasonList2: List[String]): Column = {
+    when(col("ITEM_CATEG") === "ZCAT", lit("Y"))
+      .otherwise(
+        when(col("REASON_REJ").isin(reasonList1: _*), lit("R"))
+          .otherwise(
+            when(col("CONF_QTY") === col("BTKILLQTY") && col("REASON_REJ") === "AK", lit("R"))
+              .otherwise(
+                when(col("BACT_SHIP") > col("BTGT_SHIP"), lit("N"))
+                  .otherwise(
+                    when(col("REASON_REJ").isin(reasonList2: _*), lit("N"))
+                      .otherwise(
+                        when(
+                          length(col("BACT_SHIP")) > lit(0) && 
+                          col("BACT_SHIP") <= col("BTGT_SHIP") && 
+                          col("CONF_QTY") <= col("GR_QTY"), 
+                          lit("Y")
+                        )
+                        .otherwise(
+                          when(
+                            col("ITEM_CATEG") === "ZTVR" && 
+                            sysDate >= col("BTGT_SHIP") && 
+                            length(col("BCREATEDT")) < 1, 
+                            lit("N")
+                          )
+                          .otherwise(
+                            when(
+                              length(col("BACT_SHIP")) < 1 && 
+                              sysDate <= col("LAG_DATE"), 
+                              lit("L")
+                            )
+                            .otherwise(
+                              when(
+                                length(col("BACT_SHIP")) > lit(0) && 
+                                col("BACT_SHIP") <= col("BTGT_SHIP") && 
+                                sysDate <= col("LAG_DATE") && 
+                                col("CONF_QTY") > col("GR_QTY"), 
+                                lit("L")
+                              )
+                              .otherwise(lit("N"))
+                            )
+                          )
+                        )
+                      )
+                  )
+              )
+          )
+      )
+  }
+
+  // Helper function for other document types logic  
+  def otherDocTypesLogic(reasonList3: List[String], reasonList4: List[String]): Column = {
+    when(col("REASON_REJ") === "CB", lit("N"))
+      .otherwise(
+        when(length(col("BTGT_SHIP")) < lit(1), lit(" "))
+          .otherwise(
+            when(col("ITEM_CATEG") === "ZTXT", lit(" "))
+              .otherwise(
+                when(
+                  col("ITEM_CATEG") === "ZSTO" && 
+                  col("GR_QTY") <= lit(0) && 
+                  length(col("DOC_DATE")) < lit(1) && 
+                  sysDate > col("LAG_DATE"), 
+                  lit("R")
+                )
+                .otherwise(
+                  when(
+                    col("REASON_REJ") > lit(" ") && 
+                    (sysDate <= col("LAG_DATE") || col("REASON_REJ").isin(reasonList3: _*)), 
+                    lit("R")
+                  )
+                  .otherwise(
+                    when(
+                      length(col("BACT_SHIP")) > lit(0) && 
+                      col("BACT_SHIP") <= col("BTGT_SHIP") && 
+                      (col("CONF_QTY") <= col("ZQUANTITY") || 
+                       (col("LOWR_BND") > lit(0) && col("REASON_REJ").isin(reasonList4: _*))), 
+                      lit("Y")
+                    )
+                    .otherwise(
+                      when(col("BACT_SHIP") > col("BTGT_SHIP"), lit("N"))
+                        .otherwise(
+                          when(
+                            sysDate >= col("BTGT_SHIP") && 
+                            length(col("DOC_DATE")) < lit(1) && 
+                            length(col("BCREATEDT")) < lit(1), 
+                            lit("N")
+                          )
+                          .otherwise(
+                            when(
+                              length(col("BACT_SHIP")) < lit(1) && 
+                              sysDate <= col("LAG_DATE"), 
+                              lit("L")
+                            )
+                            .otherwise(
+                              when(
+                                length(col("BACT_SHIP")) > lit(0) && 
+                                col("BACT_SHIP") <= col("BTGT_SHIP") && 
+                                sysDate <= col("LAG_DATE") && 
+                                col("CONF_QTY") > col("GR_QTY"), 
+                                lit("L")
+                              )
+                              .otherwise(lit("N"))
+                            )
+                          )
+                        )
+                    )
+                  )
+                )
+              )
+          )
+      )
+  }
 
   bofo20DF
     .withColumn("LAG_DATE", lagDateUDF(col("BTGT_SHIP")))
     .withColumn("ZQUANTITY", when(col("GR_QTY") > lit(0), col("GR_QTY")).otherwise(col("BSHIP_QTY")))
     .withColumn(
       "BAVAILIND",
-      when(col("DOC_TYPE").isin("ZTVC", "ZCAT"), {
-        when(col("ITEM_CATEG") === "ZCAT", lit("Y"))
-          .otherwise(
-            when(col("REASON_REJ").isin(reasonList1), lit("R"))
-              .otherwise(when(col("CONF_QTY") === col("BTKILLQTY") && col("REASON_REJ") === "AK", lit("R"))
-                .otherwise(when(col("BACT_SHIP") > col("BTGT_SHIP"), lit("N"))
-                  .otherwise(when(col("REASON_REJ").isin(reasonList2), lit("N"))
-                    .otherwise(when(length(col("BACT_SHIP")) > lit(0) && col("BACT_SHIP") <= col("BTGT_SHIP") && col("CONF_QTY") <= col("GR_QTY"), lit("Y"))
-                      .otherwise(when(col("ITEM_CATEG") === "ZTVR" && sysDate >= col("BTGT_SHIP") && length(col("BCREATEDT")) < 1, lit("N"))
-                        .otherwise(when(length(col("BACT_SHIP")) < 1 && sysDate <= col("LAG_DATE"), lit("L"))
-                          .otherwise(when(length(col("BACT_SHIP")) > lit(0) && col("BACT_SHIP") <= col("BTGT_SHIP") && sysDate <= col("LAG_DATE") && col("CONF_QTY") > col("GR_QTY"), lit("L"))
-                            .otherwise(lit("N"))))))))))
-      })
-        .otherwise(when(col("REASON_REJ") === "CB", lit("N"))
-          .otherwise(when(length(col("BTGT_SHIP")) < lit(1), " ")
-            .otherwise(when(col("ITEM_CATEG") === "ZTXT", " ")
-              .otherwise(when(col("ITEM_CATEG") === "ZSTO" && col("GR_QTY") <= lit(0) && length(col("DOC_DATE")) < lit(1) && sysDate > col("LAG_DATE"), lit("R"))
-                .otherwise(when(col("REASON_REJ") > lit(" ") && (sysDate <= col("LAG_DATE") || col("REASON_REJ").isin(reasonList3)), lit("R"))
-                  .otherwise(when(length(col("BACT_SHIP")) > lit(0) && col("BACT_SHIP") <= col("BTGT_SHIP") && (col("CONF_QTY") <= col("ZQUANTITY") || (col("LOWR_BND") > lit(0) && col("REASON_REJ").isin(reasonList4))), lit("Y"))
-                    .otherwise(when(col("BACT_SHIP") > col("BTGT_SHIP"), lit("N"))
-                      .otherwise(when(sysDate >= col("BTGT_SHIP") && length(col("DOC_DATE")) < lit(1) && length(col("BCREATEDT")) < lit(1), lit("N"))
-                        .otherwise(when(length(col("BACT_SHIP")) < lit(1) && sysDate <= col("LAG_DATE"), lit("L"))
-                          .otherwise(when(length(col("BACT_SHIP")) > lit(0) && col("BACT_SHIP") <= col("BTGT_SHIP") && sysDate <= col("LAG_DATE") && col("CONF_QTY") > col("GR_QTY"), lit("L"))
-                            .otherwise(lit("N")))))))))))))
+      when(col("DOC_TYPE").isin("ZTVC", "ZCAT"), ztvcZcatLogic(reasonList1, reasonList2))
+        .otherwise(otherDocTypesLogic(reasonList3, reasonList4))
+    )
     .select((bofo20DF.columns :+ "BAVAILIND").map(col): _*)
 }
 
 // BOFO15
 val bofo15Keys = "DOC_NUMBER,S_ORD_ITEM"
-val bofo15Fields = "DOC_NUMBER,S_ORD_ITEM,SCHED_LINE,DELIV_NUMB,DELIV_ITEM,REQU_QTY,CONF_QTY,DLV_QTY,SALES_UNIT,DLV_STSO,DLV_STS,GI_STS,LW_GISTS,DSDEL_DATE,DSDEL_TIME,CONF_DATE,CONF_TIME,PLD_GI_DTE,ACT_GI_DTE,LST_A_GD,ACT_DL_DTE,ACT_DL_TME,LST_A_DD,LST_A_DT,DLV_BLOCKD,BASE_UOM,DENOMINTR,NUMERATOR,DOC_CATEG,SCHED_DEL,REC_DELETD,BMATL_BLK,DLVQEYCR,DLVQEYSC,DLVQLECR,DLVQLESC,BCOUNTER,BCNDQTY,BEARCDTE"
-val bofo15UsedForBofo30Seq = "DOC_CATEG,DOC_NUMBER,S_ORD_ITEM,SALES_UNIT,DLV_STSO,DLV_STS,LW_GISTS,DSDEL_DATE,LST_A_GD,BMATL_BLK,LST_A_GD,BMATL_BLK".split(",").toSeq
+val bofo15Fields = 
+  "DOC_NUMBER,S_ORD_ITEM,SCHED_LINE,DELIV_NUMB,DELIV_ITEM,REQU_QTY,CONF_QTY,DLV_QTY,SALES_UNIT," +
+  "DLV_STSO,DLV_STS,GI_STS,LW_GISTS,DSDEL_DATE,DSDEL_TIME,CONF_DATE,CONF_TIME,PLD_GI_DTE," +
+  "ACT_GI_DTE,LST_A_GD,ACT_DL_DTE,ACT_DL_TME,LST_A_DD,LST_A_DT,DLV_BLOCKD,BASE_UOM,DENOMINTR," +
+  "NUMERATOR,DOC_CATEG,SCHED_DEL,REC_DELETD,BMATL_BLK,DLVQEYCR,DLVQEYSC,DLVQLECR,DLVQLESC," +
+  "BCOUNTER,BCNDQTY,BEARCDTE"
+val bofo15UsedForBofo30Seq = 
+  "DOC_CATEG,DOC_NUMBER,S_ORD_ITEM,SALES_UNIT,DLV_STSO,DLV_STS,LW_GISTS,DSDEL_DATE,LST_A_GD,BMATL_BLK,LST_A_GD,BMATL_BLK"
+    .split(",").toSeq
 val bofo15Schema = StructType(
   bofo15Fields.split(",").toList.map(x => schemaMapper(x, bofo15Keys.split(",").toList))
 )
@@ -729,31 +881,7 @@ val ingestAfterBofo20DF = ingestBeforeBofo20DF
       col("actShipfromBcnfactsp.ACT_GI_FLAG") === col("ingestBeforeBofo20AllJoinFlagsDF.ACT_GI_FLAG") &&
       col("actShipfromBcnfactsp.CONF_DATE_FLAG") === col("ingestBeforeBofo20AllJoinFlagsDF.CONF_DATE_FLAG")
   )
-  .withColumn(
-    "BACT_SHIP",
-    when(col("BCNFCHR01") === lit("L"), col("LOAD_DATE"))
-      .otherwise(
-        when(col("BCNFCHR01") === lit("G"), col("BGR_DATE"))
-          .otherwise(
-            when(col("BCNFCHR01") === lit("C"), col("CONF_DATE"))
-              .otherwise(
-                when(col("BCNFCHR01") === lit("P"), col("BCUSTPODT"))
-                  .otherwise(
-                    when(col("BCNFCHR01") === lit("M"), col("BMATRCVDT"))
-                      .otherwise(
-                        when(
-                          col("BCNFCHR01") === lit("O") && length(col("BCNFCHR01")) < lit(1),
-                          julianDateParseUDF(col("BMATRCVDT").substr(14, 4))
-                        )
-                          .otherwise(
-                            when(col("BCNFCHR01") === lit("B"), lit("")).otherwise(lit(""))
-                          )
-                      )
-                  )
-              )
-          )
-      )
-  )
+  .withColumn("BACT_SHIP", new BofParser().calculateBactShip)
   .withColumn("PSTNG_DATE", dateParseUdf(col("BGR_DATE")))
   .join(
     bcnfstagpDF.alias("bcnfstagpDF"),
